@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Find Out",
+    "slug": "find-out-prototype",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {"supportsTablet": false},
+    "android": {"adaptiveIcon": {"backgroundColor": "#ffffff"}},
+    "web": {"bundler": "metro"},
+    "experiments": {
+      "baseUrl": "/Find-Out"
+    }
+  }
+}

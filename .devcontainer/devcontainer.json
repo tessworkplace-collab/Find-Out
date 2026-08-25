@@ -1,0 +1,25 @@
+{
+  "name": "Find Out Expo Preview",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [8081],
+  "portsAttributes": {
+    "8081": {
+      "label": "Find Out Expo Web",
+      "onAutoForward": "openBrowser",
+      "visibility": "private"
+    }
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "bash -lc 'if ! curl -fsS http://127.0.0.1:8081 >/dev/null 2>&1; then nohup npm run web > /tmp/find-out-expo.log 2>&1 & fi'",
+  "remoteEnv": {
+    "EXPO_NO_TELEMETRY": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

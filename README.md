@@ -2,15 +2,25 @@
 
 This repository contains the first coded implementation of the approved **Find Out** Figma prototype.
 
-## Fastest way to preview
+## Live web preview
 
-### Option A — GitHub Codespaces (recommended)
+GitHub Pages URL (after the one-time Pages setting is enabled):
+
+**https://tessworkplace-collab.github.io/Find-Out/**
+
+Automatic deployment is configured in `.github/workflows/pages.yml`. Pushes to `main` and `feat/initial-expo-prototype` export the Expo web build and deploy `dist` to GitHub Pages.
+
+One-time repository setup: **Settings → Pages → Build and deployment → Source → GitHub Actions**.
+
+## Fastest development preview
+
+### Option A — GitHub Codespaces
 
 Open a Codespace on the prototype branch:
 
 [Open Find Out in Codespaces](https://codespaces.new/tessworkplace-collab/Find-Out?quickstart=1&ref=feat%2Finitial-expo-prototype)
 
-The Codespace installs dependencies automatically, starts the Expo web preview on port **8081**, and opens the forwarded preview in a browser. If the preview does not open automatically, open the **Ports** tab and click the forwarded `8081` URL.
+The Codespace installs dependencies automatically and exposes the Expo web preview on port **8081**. If the preview does not open automatically, run `npm run web`, then open the forwarded `8081` URL from the **Ports** tab.
 
 ### Option B — Run locally with Expo
 
@@ -41,9 +51,11 @@ Secondary navigation also includes My Discoveries, Profile, Trophies, Evidence D
 
 The UI and interaction flow are functional. Photo/video/audio capture is currently a **prototype simulation** that reproduces the designed capture states without requesting real device camera/microphone APIs. This keeps the first build stable for interface/user-flow testing. The next implementation pass can replace the simulated capture screen with `expo-camera` and `expo-audio` while keeping the same UI structure.
 
-## Automated check
+## Automated checks and deployment
 
-The GitHub Actions workflow **Expo web check** installs dependencies and exports the web build on pushes and pull requests. A successful run means the web prototype bundles successfully. The resulting `dist` folder is uploaded as the `find-out-web-build` artifact.
+- **Expo web check** installs dependencies and exports the web build on pushes and pull requests.
+- **Deploy Expo Web to GitHub Pages** exports the production web app, uploads the `dist` artifact, and deploys it to GitHub Pages.
+- Expo is configured with `experiments.baseUrl: "/Find-Out"` so generated assets work from the repository subpath used by GitHub Pages.
 
 ## Figma source
 
@@ -70,6 +82,7 @@ Core tokens:
 - `src/theme.ts` — design tokens and type styles
 - `src/data.ts` — mission/discovery prototype data
 - `src/brand.ts` — exact approved Find Out mark as an embedded asset
-- `.devcontainer/devcontainer.json` — one-click Codespaces preview setup
+- `.devcontainer/devcontainer.json` — Codespaces preview setup
 - `.github/workflows/web-check.yml` — Expo web export check
+- `.github/workflows/pages.yml` — automatic GitHub Pages deployment
 - `AGENTS.md` — product and engineering constraints for future Codex work

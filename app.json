@@ -8,6 +8,9 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {"supportsTablet": false},
     "android": {"adaptiveIcon": {"backgroundColor": "#ffffff"}},
-    "web": {"bundler": "metro"}
+    "web": {"bundler": "metro"},
+    "experiments": {
+      "baseUrl": "/Find-Out"
+    }
   }
 }

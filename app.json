@@ -6,6 +6,22 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": ["**/*"],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Find Out to use your camera to capture photo and video evidence.",
+          "microphonePermission": "Allow Find Out to use your microphone while recording video evidence.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Find Out to use your microphone to record audio evidence."
+        }
+      ]
+    ],
     "ios": {"supportsTablet": false},
     "android": {"adaptiveIcon": {"backgroundColor": "#ffffff"}},
     "web": {"bundler": "metro"},

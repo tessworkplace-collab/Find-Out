@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web --port 8081",
     "web:export": "expo export --platform web",
+    "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor"
   },
   "dependencies": {

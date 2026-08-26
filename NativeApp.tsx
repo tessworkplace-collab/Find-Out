@@ -41,6 +41,13 @@ import {
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
 import { activeMission } from './src/data';
+import {
+  clearDraft,
+  loadDraft,
+  persistEvidenceFile,
+  removePersistedEvidence,
+  saveDraft,
+} from './src/draftStorage';
 import { colors, radius, typography } from './src/theme';
 
 type Screen =
@@ -60,6 +67,8 @@ type Evidence = {
   uri: string;
   durationMs?: number;
 };
+
+const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
   return (
@@ -283,10 +292,9 @@ export default function NativeApp() {
   const [videoDurationMs, setVideoDurationMs] = useState(0);
   const [highestStep, setHighestStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
-  const [observation, setObservation] = useState(
-    'The crossing signal carries farther than I noticed.',
-  );
+  const [observation, setObservation] = useState(DEFAULT_OBSERVATION);
   const [location, setLocation] = useState('');
+  const [draftReady, setDraftReady] = useState(false);
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
@@ -294,6 +302,87 @@ export default function NativeApp() {
   const [videoMicPermission, requestVideoMicPermission] = useMicrophonePermissions();
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioState = useAudioRecorderState(audioRecorder, 200);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const restoreDraft = async () => {
+      try {
+        const draft = await loadDraft();
+        if (!mounted || !draft) return;
+
+        const restoredEvidence = draft.evidence as Evidence | null;
+        const restoredScreen: Screen =
+          draft.screen === 'capture' || draft.screen === 'preview'
+            ? restoredEvidence
+              ? 'document'
+              : 'evidence'
+            : draft.screen === 'complete' && !draft.submitted
+              ? 'document'
+              : (draft.screen as Screen);
+
+        setCaptureMode(draft.captureMode);
+        setEvidence(restoredEvidence);
+        setHighestStep(draft.highestStep);
+        setSubmitted(draft.submitted);
+        setObservation(draft.observation || DEFAULT_OBSERVATION);
+        setLocation(draft.location || '');
+        setScreen(restoredScreen);
+      } catch {
+        // A broken local draft should never block the prototype from opening.
+      } finally {
+        if (mounted) setDraftReady(true);
+      }
+    };
+
+    restoreDraft();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
+    const hasProgress =
+      screen !== 'discover' ||
+      highestStep > 0 ||
+      Boolean(evidence) ||
+      location.length > 0 ||
+      observation !== DEFAULT_OBSERVATION;
+
+    if (!hasProgress) return;
+
+    const restorableScreen =
+      screen === 'capture' || screen === 'preview'
+        ? evidence
+          ? 'document'
+          : 'evidence'
+        : screen;
+
+    const timer = setTimeout(() => {
+      saveDraft({
+        screen: restorableScreen,
+        captureMode,
+        evidence,
+        highestStep,
+        submitted,
+        observation,
+        location,
+      }).catch(() => undefined);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [
+    draftReady,
+    screen,
+    captureMode,
+    evidence,
+    highestStep,
+    submitted,
+    observation,
+    location,
+  ]);
 
   useEffect(() => {
     if (!isVideoRecording) return;
@@ -307,7 +396,7 @@ export default function NativeApp() {
     return () => clearInterval(timer);
   }, [isVideoRecording]);
 
-  if (!archivoLoaded || !interLoaded) return null;
+  if (!archivoLoaded || !interLoaded || !draftReady) return null;
 
   const updateHighestStep = (step: number) => {
     setHighestStep(current => Math.max(current, step));
@@ -335,10 +424,25 @@ export default function NativeApp() {
 
   const goCapture = (mode: CaptureMode) => {
     setCaptureMode(mode);
-    setEvidence(null);
     setCameraReady(false);
     setVideoDurationMs(0);
     setScreen('capture');
+  };
+
+  const commitEvidence = async (nextEvidence: Evidence) => {
+    let stableEvidence = nextEvidence;
+
+    try {
+      stableEvidence = (await persistEvidenceFile(nextEvidence)) as Evidence;
+      if (evidence?.uri && evidence.uri !== stableEvidence.uri) {
+        await removePersistedEvidence(evidence);
+      }
+    } catch {
+      // Keep the live URI so the user can still finish this session.
+    }
+
+    setEvidence(stableEvidence);
+    return stableEvidence;
   };
 
   const takePhoto = async () => {
@@ -347,7 +451,7 @@ export default function NativeApp() {
     try {
       const result = await cameraRef.current.takePictureAsync({ quality: 0.85 });
       if (!result?.uri) return;
-      setEvidence({ type: 'photo', uri: result.uri });
+      await commitEvidence({ type: 'photo', uri: result.uri });
       setScreen('preview');
     } catch (error) {
       Alert.alert(
@@ -382,7 +486,7 @@ export default function NativeApp() {
       if (result.canceled || !result.assets[0]?.uri) return;
 
       setCaptureMode('photo');
-      setEvidence({ type: 'photo', uri: result.assets[0].uri });
+      await commitEvidence({ type: 'photo', uri: result.assets[0].uri });
       setScreen('preview');
     } catch (error) {
       Alert.alert(
@@ -411,7 +515,7 @@ export default function NativeApp() {
 
       if (result?.uri) {
         setVideoDurationMs(durationMs);
-        setEvidence({ type: 'video', uri: result.uri, durationMs });
+        await commitEvidence({ type: 'video', uri: result.uri, durationMs });
         setScreen('preview');
       }
     } catch (error) {
@@ -432,7 +536,7 @@ export default function NativeApp() {
         await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
         const uri = audioRecorder.uri ?? audioState.url;
         if (uri) {
-          setEvidence({
+          await commitEvidence({
             type: 'audio',
             uri,
             durationMs: audioState.durationMillis,
@@ -460,6 +564,21 @@ export default function NativeApp() {
         error instanceof Error ? error.message : 'Could not record audio.',
       );
     }
+  };
+
+  const resetMission = async () => {
+    try {
+      await clearDraft(evidence);
+    } catch {
+      // Reset the UI even if local cleanup fails.
+    }
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(0);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode('audio');
+    setScreen('discover');
   };
 
   const renderCapture = () => {
@@ -579,13 +698,21 @@ export default function NativeApp() {
                 <Ionicons name="images-outline" size={30} color={colors.blue} />
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Take photo"
                 onPress={takePhoto}
                 disabled={!cameraReady}
-                style={styles.shutterOuter}
+                style={({ pressed }) => [
+                  styles.shutterOuter,
+                  !cameraReady && { opacity: 0.45 },
+                  pressed && cameraReady && { opacity: 0.7 },
+                ]}
               >
                 <View style={styles.shutterInner} />
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Flip camera"
                 style={styles.sideControl}
                 onPress={() => setFacing(value => (value === 'back' ? 'front' : 'back'))}
               >
@@ -681,6 +808,11 @@ export default function NativeApp() {
             </Pressable>
           ) : null}
 
+          <View style={styles.draftNote}>
+            <Ionicons name="cloud-done-outline" size={18} color={colors.blue} />
+            <AppText style={styles.smallMuted}>Draft saves automatically on this device.</AppText>
+          </View>
+
           <PrimaryButton
             label="Submit discovery"
             disabled={!evidence}
@@ -712,15 +844,7 @@ export default function NativeApp() {
             {evidence ? (
               <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
             ) : null}
-            <PrimaryButton
-              label="Explore another mission"
-              onPress={() => {
-                setEvidence(null);
-                setSubmitted(false);
-                setHighestStep(0);
-                setScreen('discover');
-              }}
-            />
+            <PrimaryButton label="Explore another mission" onPress={resetMission} />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -981,8 +1105,8 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    borderWidth: 3,
-    borderColor: colors.ink,
+    borderWidth: 4,
+    borderColor: colors.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1074,6 +1198,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blueSubtle,
     borderRadius: radius.md,
     padding: 14,
+  },
+  draftNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 2,
   },
   completeWrap: { alignItems: 'center', gap: 18, paddingTop: 60 },
   successCircle: {

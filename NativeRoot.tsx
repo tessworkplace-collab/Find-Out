@@ -16,7 +16,7 @@ import { BRAND_MARK_URI } from './src/brand';
 import { clearDraft, DraftSnapshot, loadDraft } from './src/draftStorage';
 import { colors, radius } from './src/theme';
 
-type GateState = 'loading' | 'choice' | 'app';
+type GateState = 'loading' | 'choice' | 'onboarding' | 'app';
 
 export default function NativeRoot() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
@@ -35,11 +35,11 @@ export default function NativeRoot() {
           setDraft(restored);
           setGateState('choice');
         } else {
-          setGateState('app');
+          setGateState('onboarding');
         }
       })
       .catch(() => {
-        if (mounted) setGateState('app');
+        if (mounted) setGateState('onboarding');
       });
 
     return () => {
@@ -51,6 +51,49 @@ export default function NativeRoot() {
 
   if (gateState === 'app') {
     return <NativeApp />;
+  }
+
+  if (gateState === 'onboarding') {
+    return (
+      <View style={styles.onboarding}>
+        <StatusBar style="dark" />
+
+        <View style={styles.logoLockup}>
+          <Image source={{ uri: BRAND_MARK_URI }} style={styles.logoMark} />
+          <View>
+            <Text style={styles.logoName}>FIND OUT</Text>
+            <Text style={styles.logoTag}>OPEN DISCOVERY</Text>
+          </View>
+        </View>
+
+        <View style={styles.onboardingCopy}>
+          <Text style={styles.onboardingTitle}>Turn curiosity into a mission.</Text>
+          <Text style={styles.onboardingBody}>
+            Notice what is missing, investigate the real world, and submit your own discovery.
+          </Text>
+        </View>
+
+        <View style={styles.onboardingActions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setGateState('app')}
+            style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.82 }]}
+          >
+            <Text style={styles.primaryButtonText}>Start exploring</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setGateState('app')}
+            style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.72 }]}
+          >
+            <Text style={styles.onboardingSecondaryText}>How it works</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.footer}>Notice  •  Investigate  •  Submit  •  Reveal</Text>
+      </View>
+    );
   }
 
   const continueDraft = () => {
@@ -71,7 +114,7 @@ export default function NativeRoot() {
             try {
               await clearDraft(draft?.evidence ?? null);
               setDraft(null);
-              setGateState('app');
+              setGateState('onboarding');
             } catch {
               Alert.alert('Could not clear draft', 'Please try again.');
             } finally {
@@ -142,6 +185,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 72,
     paddingBottom: 40,
+  },
+  onboarding: {
+    flex: 1,
+    backgroundColor: colors.white,
+    paddingHorizontal: 24,
+    paddingTop: 84,
+    paddingBottom: 34,
+  },
+  logoLockup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoMark: {
+    width: 76,
+    height: 76,
+    resizeMode: 'contain',
+  },
+  logoName: {
+    color: colors.ink,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 24,
+    letterSpacing: 0.4,
+  },
+  logoTag: {
+    color: colors.ink,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
+    letterSpacing: 3.1,
+    marginTop: 2,
+  },
+  onboardingCopy: {
+    marginTop: 238,
+    gap: 24,
+  },
+  onboardingTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: -0.4,
+  },
+  onboardingBody: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
+    lineHeight: 29,
+  },
+  onboardingActions: {
+    marginTop: 'auto',
+    gap: 10,
+  },
+  onboardingSecondaryText: {
+    color: colors.blue,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  footer: {
+    color: colors.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textAlign: 'center',
+    marginTop: 14,
   },
   brandRow: {
     flexDirection: 'row',

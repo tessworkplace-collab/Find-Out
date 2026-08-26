@@ -20,6 +20,12 @@
         {
           "microphonePermission": "Allow Find Out to use your microphone to record audio evidence."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Find Out to access your photo library so you can choose photo evidence."
+        }
       ]
     ],
     "ios": {"supportsTablet": false},

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Image,
   Pressable,
+  processColor,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -22,9 +23,9 @@ import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius } from './src/theme';
 
 // NativeApp's only ink-coloured border is the photo shutter outer ring.
-// Register this before loading NativeApp so it matches the Figma primary-blue shutter.
+// Preserve React Native's normal color preprocessing while remapping that ring to Find Out blue.
 StyleSheet.setStyleAttributePreprocessor('borderColor', value =>
-  value === colors.ink ? colors.blue : value,
+  processColor(value === colors.ink ? colors.blue : value),
 );
 
 const NativeApp = require('./NativeApp').default as React.ComponentType;

@@ -28,6 +28,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import {
   Archivo_600SemiBold,
@@ -356,6 +357,41 @@ export default function NativeApp() {
     }
   };
 
+  const pickPhotoFromLibrary = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Photo access needed',
+          'Allow photo library access so you can choose an existing image as evidence.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open settings', onPress: () => Linking.openSettings() },
+          ],
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.85,
+        selectionLimit: 1,
+      });
+
+      if (result.canceled || !result.assets[0]?.uri) return;
+
+      setCaptureMode('photo');
+      setEvidence({ type: 'photo', uri: result.assets[0].uri });
+      setScreen('preview');
+    } catch (error) {
+      Alert.alert(
+        'Photo library error',
+        error instanceof Error ? error.message : 'Could not open your photo library.',
+      );
+    }
+  };
+
   const toggleVideo = async () => {
     if (!cameraRef.current || !cameraReady) return;
 
@@ -534,9 +570,14 @@ export default function NativeApp() {
           </CameraView>
           {captureMode === 'photo' ? (
             <View style={styles.photoControls}>
-              <View style={styles.sideControl}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose photo from library"
+                style={({ pressed }) => [styles.sideControl, pressed && { opacity: 0.7 }]}
+                onPress={pickPhotoFromLibrary}
+              >
                 <Ionicons name="images-outline" size={30} color={colors.blue} />
-              </View>
+              </Pressable>
               <Pressable
                 onPress={takePhoto}
                 disabled={!cameraReady}

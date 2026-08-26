@@ -368,7 +368,7 @@ export default function NativeApp() {
       videoStartedAt.current = Date.now();
       setVideoDurationMs(0);
       setIsVideoRecording(true);
-      const result = await cameraRef.current.recordAsync({ maxDuration: 60 });
+      const result = await cameraRef.current.recordAsync({ maxDuration: 5 });
       const durationMs = videoStartedAt.current
         ? Date.now() - videoStartedAt.current
         : videoDurationMs;
@@ -534,7 +534,9 @@ export default function NativeApp() {
           </CameraView>
           {captureMode === 'photo' ? (
             <View style={styles.photoControls}>
-              <View style={styles.sideControl} />
+              <View style={styles.sideControl}>
+                <Ionicons name="images-outline" size={30} color={colors.blue} />
+              </View>
               <Pressable
                 onPress={takePhoto}
                 disabled={!cameraReady}
@@ -551,11 +553,7 @@ export default function NativeApp() {
             </View>
           ) : (
             <PrimaryButton
-              label={
-                isVideoRecording
-                  ? `Stop & preview · ${formatDuration(videoDurationMs)}`
-                  : 'Start recording'
-              }
+              label={isVideoRecording ? 'Stop & preview' : 'Start recording'}
               onPress={toggleVideo}
               disabled={!cameraReady}
             />

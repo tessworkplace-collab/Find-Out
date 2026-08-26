@@ -18,9 +18,15 @@ export type DraftSnapshot = {
   updatedAt: string;
 };
 
-const DRAFT_KEY = 'findout:draft:v2';
-const DRAFT_DIRECTORY = `${FileSystem.documentDirectory ?? ''}find-out-drafts/`;
+// v3 intentionally ignores the earlier race-prone draft format.
+const DRAFT_KEY = 'findout:draft:v3';
+const DRAFT_DIRECTORY = `${FileSystem.documentDirectory ?? ''}find-out-drafts-v3/`;
 const DRAFT_FILE = `${DRAFT_DIRECTORY}draft.json`;
+
+// Keep writes strictly ordered. Without this, several autosaves fired close together
+// can finish out of order and an older Mission snapshot can overwrite a newer
+// Document snapshot just before Expo Go is closed.
+let writeQueue: Promise<void> = Promise.resolve();
 
 function extensionFor(type: PersistedEvidence['type'], uri: string) {
   const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
@@ -78,6 +84,10 @@ export async function removePersistedEvidence(evidence: PersistedEvidence | null
 }
 
 export async function loadDraft(): Promise<DraftSnapshot | null> {
+  // Wait for any in-flight save before reading. This matters during fast refreshes
+  // and quick Expo Go background/foreground cycles.
+  await writeQueue.catch(() => undefined);
+
   let asyncDraft: DraftSnapshot | null = null;
   let fileDraft: DraftSnapshot | null = null;
 
@@ -105,13 +115,8 @@ export async function loadDraft(): Promise<DraftSnapshot | null> {
   return validateEvidence(candidates[0]);
 }
 
-export async function saveDraft(snapshot: Omit<DraftSnapshot, 'updatedAt'>) {
-  const draft: DraftSnapshot = {
-    ...snapshot,
-    updatedAt: new Date().toISOString(),
-  };
+async function writeDraftNow(draft: DraftSnapshot) {
   const raw = JSON.stringify(draft);
-
   const writes: Promise<unknown>[] = [AsyncStorage.setItem(DRAFT_KEY, raw)];
 
   if (FileSystem.documentDirectory) {
@@ -129,13 +134,32 @@ export async function saveDraft(snapshot: Omit<DraftSnapshot, 'updatedAt'>) {
   }
 }
 
-export async function clearDraft(evidence?: PersistedEvidence | null) {
-  await Promise.allSettled([
-    AsyncStorage.removeItem(DRAFT_KEY),
-    FileSystem.documentDirectory
-      ? FileSystem.deleteAsync(DRAFT_FILE, { idempotent: true })
-      : Promise.resolve(),
-  ]);
+export function saveDraft(snapshot: Omit<DraftSnapshot, 'updatedAt'>) {
+  const draft: DraftSnapshot = {
+    ...snapshot,
+    updatedAt: new Date().toISOString(),
+  };
 
-  if (evidence) await removePersistedEvidence(evidence);
+  writeQueue = writeQueue
+    .catch(() => undefined)
+    .then(() => writeDraftNow(draft));
+
+  return writeQueue;
+}
+
+export function clearDraft(evidence?: PersistedEvidence | null) {
+  writeQueue = writeQueue
+    .catch(() => undefined)
+    .then(async () => {
+      await Promise.allSettled([
+        AsyncStorage.removeItem(DRAFT_KEY),
+        FileSystem.documentDirectory
+          ? FileSystem.deleteAsync(DRAFT_FILE, { idempotent: true })
+          : Promise.resolve(),
+      ]);
+
+      if (evidence) await removePersistedEvidence(evidence);
+    });
+
+  return writeQueue;
 }

@@ -23,7 +23,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply patch
-        run: python .github/scripts/add_filters_review.py
+        run: |
+          python .github/scripts/add_filters_review.py
+          python .github/scripts/fix_filters_review.py
 
       - name: Install dependencies
         run: npm install

@@ -106,14 +106,30 @@ function PrimaryButton({
   );
 }
 
-function TopBar({ title, onBack }: { title: string; onBack?: () => void }) {
+function TopBar({
+  title,
+  onBack,
+  onExit,
+}: {
+  title: string;
+  onBack?: () => void;
+  onExit?: () => void;
+}) {
   return (
     <View style={styles.topBar}>
       <Pressable style={styles.hit} onPress={onBack} disabled={!onBack}>
         {onBack ? <Ionicons name="chevron-back" size={24} color={colors.ink} /> : null}
       </Pressable>
       <AppText style={styles.topTitle}>{title}</AppText>
-      <View style={styles.hit} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Exit mission to Home"
+        style={styles.hit}
+        onPress={onExit}
+        disabled={!onExit}
+      >
+        {onExit ? <Ionicons name="close" size={24} color={colors.ink} /> : null}
+      </Pressable>
     </View>
   );
 }
@@ -136,7 +152,7 @@ function Stepper({
       {labels.map((label, index) => {
         const available = index <= maxStep && !disabled;
         const isActive = index === active;
-        const isCompleted = index < maxStep;
+        const isUnlocked = index <= maxStep;
 
         return (
           <Pressable
@@ -147,21 +163,22 @@ function Stepper({
             onPress={() => onStepPress(index)}
             style={({ pressed }) => [
               styles.stepItem,
-              !available && styles.stepItemDisabled,
+              !isUnlocked && styles.stepItemDisabled,
               pressed && available && { opacity: 0.65 },
             ]}
           >
             <View
               style={[
                 styles.stepDot,
-                isCompleted && styles.stepDotCompleted,
+                isUnlocked && !isActive && styles.stepDotUnlocked,
                 isActive && styles.stepDotActive,
               ]}
             >
               <AppText
                 style={[
                   styles.stepNumber,
-                  (isCompleted || isActive) && { color: colors.white },
+                  isActive && { color: colors.white },
+                  isUnlocked && !isActive && { color: colors.text },
                 ]}
               >
                 {index + 1}
@@ -170,7 +187,8 @@ function Stepper({
             <AppText
               style={[
                 styles.stepLabel,
-                (isCompleted || isActive) && { color: colors.blue },
+                isUnlocked && !isActive && styles.stepLabelUnlocked,
+                isActive && { color: colors.blue },
               ]}
             >
               {label}
@@ -298,6 +316,7 @@ export default function NativeApp() {
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
+  const suppressDiscoverAutosave = useRef(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [videoMicPermission, requestVideoMicPermission] = useMicrophonePermissions();
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -343,6 +362,11 @@ export default function NativeApp() {
 
   useEffect(() => {
     if (!draftReady) return;
+
+    if (screen === 'discover' && suppressDiscoverAutosave.current) {
+      suppressDiscoverAutosave.current = false;
+      return;
+    }
 
     const hasProgress =
       screen !== 'discover' ||
@@ -400,6 +424,33 @@ export default function NativeApp() {
 
   const updateHighestStep = (step: number) => {
     setHighestStep(current => Math.max(current, step));
+  };
+
+  const getRestorableScreen = (): Screen => {
+    if (screen === 'capture' || screen === 'preview') {
+      return evidence ? 'document' : 'evidence';
+    }
+    return screen;
+  };
+
+  const exitMissionToHome = async () => {
+    if (isVideoRecording || audioState.isRecording) return;
+
+    suppressDiscoverAutosave.current = true;
+    try {
+      await saveDraft({
+        screen: getRestorableScreen(),
+        captureMode,
+        evidence,
+        highestStep,
+        submitted,
+        observation,
+        location,
+      });
+    } catch {
+      // The existing autosave/file fallback still protects most drafts.
+    }
+    setScreen('discover');
   };
 
   const goToStep = (index: number) => {
@@ -587,7 +638,11 @@ export default function NativeApp() {
     if (captureMode === 'audio') {
       return (
         <SafeAreaView style={styles.safe}>
-          <TopBar title="Record audio" onBack={() => setScreen('evidence')} />
+          <TopBar
+            title="Record audio"
+            onBack={() => setScreen('evidence')}
+            onExit={exitMissionToHome}
+          />
           <ScrollView contentContainerStyle={styles.content}>
             <Stepper
               active={2}
@@ -626,6 +681,7 @@ export default function NativeApp() {
           <TopBar
             title={captureMode === 'photo' ? 'Take photo' : 'Record video'}
             onBack={() => setScreen('evidence')}
+            onExit={exitMissionToHome}
           />
           <PermissionGate
             title="Use your camera"
@@ -640,7 +696,11 @@ export default function NativeApp() {
     if (captureMode === 'video' && videoMicPermission && !videoMicPermission.granted) {
       return (
         <SafeAreaView style={styles.safe}>
-          <TopBar title="Record video" onBack={() => setScreen('evidence')} />
+          <TopBar
+            title="Record video"
+            onBack={() => setScreen('evidence')}
+            onExit={exitMissionToHome}
+          />
           <PermissionGate
             title="Use your microphone"
             body="Video evidence can include sound. Allow microphone access to record it."
@@ -656,6 +716,7 @@ export default function NativeApp() {
         <TopBar
           title={captureMode === 'photo' ? 'Take photo' : 'Record video'}
           onBack={() => setScreen('evidence')}
+          onExit={recording ? undefined : exitMissionToHome}
         />
         <View style={styles.cameraScreen}>
           <Stepper
@@ -736,7 +797,11 @@ export default function NativeApp() {
   if (screen === 'preview' && evidence) {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Review evidence" onBack={() => setScreen('capture')} />
+        <TopBar
+          title="Review evidence"
+          onBack={() => setScreen('capture')}
+          onExit={exitMissionToHome}
+        />
         <ScrollView contentContainerStyle={styles.content}>
           <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
           <AppText style={styles.h1}>Check your evidence</AppText>
@@ -765,7 +830,11 @@ export default function NativeApp() {
   if (screen === 'document') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Document" onBack={() => setScreen(evidence ? 'preview' : 'evidence')} />
+        <TopBar
+          title="Document"
+          onBack={() => setScreen(evidence ? 'preview' : 'evidence')}
+          onExit={exitMissionToHome}
+        />
         <ScrollView contentContainerStyle={styles.content}>
           <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
           <AppText style={styles.eyebrow}>FIELD NOTE · 03</AppText>
@@ -830,7 +899,7 @@ export default function NativeApp() {
   if (screen === 'complete') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Mission complete" />
+        <TopBar title="Mission complete" onExit={() => setScreen('discover')} />
         <ScrollView contentContainerStyle={styles.content}>
           <Stepper active={3} maxStep={highestStep} onStepPress={goToStep} />
           <View style={styles.completeWrap}>
@@ -854,7 +923,11 @@ export default function NativeApp() {
   if (screen === 'evidence') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Capture evidence" onBack={() => setScreen('investigate')} />
+        <TopBar
+          title="Capture evidence"
+          onBack={() => setScreen('investigate')}
+          onExit={exitMissionToHome}
+        />
         <ScrollView contentContainerStyle={styles.content}>
           <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
           <AppText style={styles.h1}>Capture what you found</AppText>
@@ -881,7 +954,11 @@ export default function NativeApp() {
   if (screen === 'investigate') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Investigate" onBack={() => setScreen('mission')} />
+        <TopBar
+          title="Investigate"
+          onBack={() => setScreen('mission')}
+          onExit={exitMissionToHome}
+        />
         <ScrollView contentContainerStyle={styles.content}>
           <Stepper active={1} maxStep={highestStep} onStepPress={goToStep} />
           <AppText style={styles.h1}>Follow the signal</AppText>
@@ -1010,13 +1087,18 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepDotCompleted: { backgroundColor: colors.blue, borderColor: colors.blue },
+  stepDotUnlocked: {
+    backgroundColor: colors.white,
+    borderColor: colors.borderStrong,
+  },
   stepDotActive: { backgroundColor: colors.blue, borderColor: colors.blue },
-  stepNumber: { fontFamily: 'Inter_500Medium', fontSize: 12 },
+  stepNumber: { fontFamily: 'Inter_500Medium', fontSize: 12, color: colors.muted },
   stepLabel: { ...typography.tiny, color: colors.muted },
+  stepLabelUnlocked: { color: colors.text },
   badge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.blueSubtle,

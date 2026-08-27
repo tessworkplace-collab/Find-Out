@@ -19,6 +19,28 @@ jobs:
         with:
           ref: codex/mission-difficulty
           fetch-depth: 0
+      - name: Normalize completion button for patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('App.tsx')
+          s = p.read_text()
+          old = '''        <Button
+                    outline
+                    label="Explore another mission"
+                    onPress={() => go('discover')}
+                  />'''
+          if old not in s:
+              old = '''        <Button
+          outline
+          label="Explore another mission"
+          onPress={() => go('discover')}
+        />'''
+          if old not in s:
+              raise SystemExit('completion button pattern not found')
+          s = s.replace(old, '        <Button outline label="Explore another mission" onPress={() => go(\'discover\')} />', 1)
+          p.write_text(s)
+          PY
       - name: Apply final integration
         run: python .github/scripts/finish_pr5.py
       - name: Install dependencies
@@ -34,3 +56,4 @@ jobs:
           git add App.tsx NativeApp.tsx
           git commit -m "feat: finish mission rotation and evidence states"
           git push origin HEAD:codex/mission-difficulty
+# retry 2

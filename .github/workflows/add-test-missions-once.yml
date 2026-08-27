@@ -1,0 +1,181 @@
+name: Add test missions once
+
+on:
+  push:
+    branches:
+      - codex/mission-difficulty
+    paths:
+      - .github/workflows/add-test-missions-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: codex/mission-difficulty
+          fetch-depth: 0
+
+      - name: Add selectable missions to native Home
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          native_path = Path('NativeApp.tsx')
+          text = native_path.read_text()
+
+          def one(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              text = text.replace(old, new, 1)
+
+          one(
+              "import { activeMission } from './src/data';",
+              "import { activeMission, missions, Mission } from './src/data';",
+              'mission import',
+          )
+
+          # Existing screen copy should follow the mission selected on Home.
+          text = text.replace('activeMission.', 'selectedMission.')
+
+          one(
+              "const AUDIO_MAX_DURATION_MS = 10_000;",
+              """const AUDIO_MAX_DURATION_MS = 10_000;
+const TEST_MISSION_IDS = [
+  'why-is-this-here',
+  'the-queue',
+  'dead-link',
+  'no-reviews-yet',
+  'offline-famous',
+  'local-knowledge',
+];
+const testMissions = missions.filter(mission => TEST_MISSION_IDS.includes(mission.id));""",
+              'test mission constants',
+          )
+
+          one(
+              "  const [screen, setScreen] = useState<Screen>('discover');",
+              """  const [screen, setScreen] = useState<Screen>('discover');
+  const [selectedMission, setSelectedMission] = useState<Mission>(activeMission);""",
+              'selected mission state',
+          )
+
+          one(
+              """        setCaptureMode(draft.captureMode);
+        setEvidence(restoredEvidence);""",
+              """        const restoredMission = draft.missionId
+          ? missions.find(mission => mission.id === draft.missionId)
+          : undefined;
+        if (restoredMission) setSelectedMission(restoredMission);
+
+        setCaptureMode(draft.captureMode);
+        setEvidence(restoredEvidence);""",
+              'restore selected mission',
+          )
+
+          # Autosave and explicit exit should preserve which mission the draft belongs to.
+          save_marker = """      saveDraft({
+        screen: restorableScreen,"""
+          if text.count(save_marker) != 1:
+              raise SystemExit(f'autosave marker: expected 1 match, found {text.count(save_marker)}')
+          text = text.replace(
+              save_marker,
+              """      saveDraft({
+        missionId: selectedMission.id,
+        screen: restorableScreen,""",
+              1,
+          )
+
+          exit_marker = """      await saveDraft({
+        screen: getRestorableScreen(),"""
+          if text.count(exit_marker) != 1:
+              raise SystemExit(f'exit save marker: expected 1 match, found {text.count(exit_marker)}')
+          text = text.replace(
+              exit_marker,
+              """      await saveDraft({
+        missionId: selectedMission.id,
+        screen: getRestorableScreen(),""",
+              1,
+          )
+
+          reset_marker = """  const openMyDiscoveries = async () => {
+    const saved = await loadCompletedDiscoveries();"""
+          open_picker = """  const openMissionForTest = async (mission: Mission) => {
+    try {
+      await clearDraft(evidence);
+    } catch {
+      // Starting another test mission should still reset the visible flow.
+    }
+    setSelectedMission(mission);
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(0);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode('photo');
+    setCaptureOptionsVisible(false);
+    setScreen('mission');
+  };
+
+  const openMyDiscoveries = async () => {
+    const saved = await loadCompletedDiscoveries();"""
+          one(reset_marker, open_picker, 'mission picker helper')
+
+          old_home = """        <Pressable style={styles.missionCard} onPress={() => setScreen('mission')}>
+          <View style={styles.badge}>
+            <AppText style={styles.badgeText}>{selectedMission.difficulty}</AppText>
+          </View>
+          <AppText style={styles.h3}>{selectedMission.title}</AppText>
+          <AppText style={styles.body}>{selectedMission.hook}</AppText>
+          <AppText style={styles.openMission}>OPEN MISSION →</AppText>
+        </Pressable>"""
+          new_home = """        <AppText style={styles.eyebrow}>TRY A MISSION</AppText>
+        {testMissions.map(mission => (
+          <Pressable
+            key={mission.id}
+            style={styles.missionCard}
+            onPress={() => openMissionForTest(mission)}
+          >
+            <View style={styles.badge}>
+              <AppText style={styles.badgeText}>{mission.difficulty}</AppText>
+            </View>
+            <AppText style={styles.h3}>{mission.title}</AppText>
+            <AppText style={styles.body}>{mission.hook}</AppText>
+            <AppText style={styles.openMission}>OPEN MISSION →</AppText>
+          </Pressable>
+        ))}"""
+          one(old_home, new_home, 'native home mission list')
+
+          native_path.write_text(text)
+
+          draft_path = Path('src/draftStorage.ts')
+          draft = draft_path.read_text()
+          old = """export type DraftSnapshot = {
+  screen: string;"""
+          new = """export type DraftSnapshot = {
+  missionId?: string;
+  screen: string;"""
+          if draft.count(old) != 1:
+              raise SystemExit(f'draft mission id: expected 1 match, found {draft.count(old)}')
+          draft_path.write_text(draft.replace(old, new, 1))
+          PY
+
+      - name: Verify
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+          git diff --check
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NativeApp.tsx src/draftStorage.ts
+          git commit -m "feat: add selectable missions for native testing"
+          git push origin HEAD:codex/mission-difficulty

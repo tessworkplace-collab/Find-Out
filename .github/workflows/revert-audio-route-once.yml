@@ -1,0 +1,61 @@
+name: Remove forced audio routing once
+
+on:
+  push:
+    branches:
+      - feat/real-evidence-flow
+    paths:
+      - .github/workflows/revert-audio-route-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-audio-routing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v5
+        with:
+          ref: feat/real-evidence-flow
+          fetch-depth: 0
+
+      - name: Remove forced speaker routing
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('NativeApp.tsx')
+          text = path.read_text()
+
+          old_play = """  const togglePlayback = async () => {\n    if (status.playing) {\n      player.pause();\n      return;\n    }\n\n    await setAudioModeAsync({\n      allowsRecording: false,\n      playsInSilentMode: true,\n      shouldRouteThroughEarpiece: false,\n    });\n\n    if (totalMs > 0 && currentMs >= totalMs - 250) {\n      player.seekTo(0);\n    }\n    player.play();\n  };"""
+          new_play = """  const togglePlayback = () => {\n    if (status.playing) {\n      player.pause();\n      return;\n    }\n\n    if (totalMs > 0 && currentMs >= totalMs - 250) {\n      player.seekTo(0);\n    }\n    player.play();\n  };"""
+          if text.count(old_play) != 1:
+              raise SystemExit('Expected one forced playback routing block')
+          text = text.replace(old_play, new_play, 1)
+
+          old_stop = """      await setAudioModeAsync({\n        allowsRecording: false,\n        playsInSilentMode: true,\n        shouldRouteThroughEarpiece: false,\n      });"""
+          new_stop = """      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });"""
+          if text.count(old_stop) != 1:
+              raise SystemExit('Expected one stop routing block')
+          text = text.replace(old_stop, new_stop, 1)
+
+          old_record = """      await setAudioModeAsync({\n        allowsRecording: true,\n        playsInSilentMode: true,\n        shouldRouteThroughEarpiece: false,\n      });"""
+          new_record = """      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });"""
+          if text.count(old_record) != 1:
+              raise SystemExit('Expected one record routing block')
+          text = text.replace(old_record, new_record, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Commit routing revert
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NativeApp.tsx
+          git diff --cached --check
+          git commit -m "fix: keep native audio playback routing"
+          git push origin HEAD:feat/real-evidence-flow

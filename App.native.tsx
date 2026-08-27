@@ -1,1 +1,1 @@
-export { default } from './NativeRoot';
+export { default } from './NativeStartup';

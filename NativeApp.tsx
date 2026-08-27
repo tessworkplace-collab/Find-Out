@@ -48,6 +48,11 @@ import {
   removePersistedEvidence,
   saveDraft,
 } from './src/draftStorage';
+import {
+  addCompletedDiscovery,
+  CompletedDiscovery,
+  loadCompletedDiscoveries,
+} from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
 
 type Screen =
@@ -58,7 +63,8 @@ type Screen =
   | 'capture'
   | 'preview'
   | 'document'
-  | 'complete';
+  | 'complete'
+  | 'discoveries';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
 
@@ -315,6 +321,8 @@ export default function NativeApp() {
   const [location, setLocation] = useState('');
   const [draftReady, setDraftReady] = useState(false);
   const [captureOptionsVisible, setCaptureOptionsVisible] = useState(false);
+  const [discoveries, setDiscoveries] = useState<CompletedDiscovery[]>([]);
+  const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
@@ -666,6 +674,39 @@ export default function NativeApp() {
     setScreen('discover');
   };
 
+  const openMyDiscoveries = async () => {
+    const saved = await loadCompletedDiscoveries();
+    setDiscoveries(saved);
+    setScreen('discoveries');
+  };
+
+  const submitDiscovery = async () => {
+    if (!evidence || submittingDiscovery) return;
+
+    setSubmittingDiscovery(true);
+    try {
+      const completed = await addCompletedDiscovery({
+        missionId: activeMission.id,
+        missionTitle: activeMission.title,
+        category: activeMission.category,
+        observation,
+        location,
+        evidence,
+      });
+      setDiscoveries(current => [completed, ...current.filter(item => item.id !== completed.id)]);
+      setSubmitted(true);
+      updateHighestStep(3);
+      setScreen('complete');
+    } catch (error) {
+      Alert.alert(
+        'Could not save discovery',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSubmittingDiscovery(false);
+    }
+  };
+
   const renderCapture = () => {
     const recording = isVideoRecording || audioState.isRecording;
 
@@ -917,13 +958,9 @@ export default function NativeApp() {
           </View>
 
           <PrimaryButton
-            label="Submit discovery"
-            disabled={!evidence}
-            onPress={() => {
-              setSubmitted(true);
-              updateHighestStep(3);
-              setScreen('complete');
-            }}
+            label={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
+            disabled={!evidence || submittingDiscovery}
+            onPress={submitDiscovery}
           />
         </ScrollView>
       </SafeAreaView>
@@ -947,8 +984,56 @@ export default function NativeApp() {
             {evidence ? (
               <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
             ) : null}
+            <PrimaryButton outline label="View My Discoveries" onPress={openMyDiscoveries} />
             <PrimaryButton label="Explore another mission" onPress={resetMission} />
           </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'discoveries') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <TopBar title="My Discoveries" onBack={() => setScreen('discover')} />
+        <ScrollView contentContainerStyle={styles.content}>
+          <AppText style={styles.eyebrow}>MY DISCOVERIES</AppText>
+          <AppText style={styles.h1}>What you have noticed</AppText>
+          <AppText style={styles.body}>
+            Completed field notes are saved on this device.
+          </AppText>
+
+          {discoveries.length === 0 ? (
+            <View style={styles.questionCard}>
+              <AppText style={styles.h3}>No completed discoveries yet</AppText>
+              <AppText style={styles.body}>Finish a mission and it will appear here.</AppText>
+            </View>
+          ) : (
+            discoveries.map(item => (
+              <View key={item.id} style={styles.discoveryCard}>
+                <View style={styles.discoveryMedia}>
+                  {item.evidence.type === 'photo' ? (
+                    <Image source={{ uri: item.evidence.uri }} style={styles.discoveryImage} />
+                  ) : (
+                    <Ionicons
+                      name={item.evidence.type === 'video' ? 'videocam-outline' : 'mic-outline'}
+                      size={30}
+                      color={colors.blue}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1, gap: 5 }}>
+                  <AppText style={styles.eyebrow}>{item.category}</AppText>
+                  <AppText style={styles.h3}>{item.missionTitle}</AppText>
+                  <AppText style={styles.body}>{item.observation}</AppText>
+                  <AppText style={styles.smallMuted}>
+                    {item.location ? `${item.location} · ` : ''}
+                    {new Date(item.completedAt).toLocaleDateString()}
+                  </AppText>
+                </View>
+              </View>
+            ))
+          )}
         </ScrollView>
       </SafeAreaView>
     );
@@ -1080,6 +1165,14 @@ export default function NativeApp() {
           <AppText style={styles.h3}>{activeMission.title}</AppText>
           <AppText style={styles.body}>{activeMission.hook}</AppText>
           <AppText style={styles.openMission}>OPEN MISSION →</AppText>
+        </Pressable>
+        <Pressable style={styles.linkedEvidence} onPress={openMyDiscoveries}>
+          <Ionicons name="bookmark-outline" size={26} color={colors.blue} />
+          <View style={{ flex: 1 }}>
+            <AppText style={styles.label}>My Discoveries</AppText>
+            <AppText style={styles.smallMuted}>Your completed field notes</AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
         </Pressable>
         <View style={styles.nativeNote}>
           <Ionicons name="phone-portrait-outline" size={22} color={colors.blue} />
@@ -1344,6 +1437,25 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   completeWrap: { alignItems: 'center', gap: 18, paddingTop: 60 },
+  discoveryCard: {
+    flexDirection: 'row',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.lg,
+    padding: 14,
+    backgroundColor: colors.white,
+  },
+  discoveryMedia: {
+    width: 84,
+    height: 84,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discoveryImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   successCircle: {
     width: 96,
     height: 96,

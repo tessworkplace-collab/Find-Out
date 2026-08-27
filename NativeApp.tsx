@@ -121,6 +121,17 @@ function AppText({ children, style, ...props }: React.ComponentProps<typeof Text
   );
 }
 
+function MissionNumberMark({ number }: { number: string }) {
+  return (
+    <View style={styles.missionNumberMark}>
+      <AppText style={styles.missionNumberWord}>MISSION</AppText>
+      <View style={styles.missionNumberBlock}>
+        <AppText style={styles.missionNumberDigits}>{number}</AppText>
+      </View>
+    </View>
+  );
+}
+
 function PrimaryButton({
   label,
   onPress,
@@ -1556,7 +1567,7 @@ export default function NativeApp() {
         <TopBar title="Mission" onBack={() => setScreen('discover')} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.missionIdentityRow}>
-            <AppText style={styles.missionNumberLabel}>MISSION {selectedMission.number}</AppText>
+            <MissionNumberMark number={selectedMission.number} />
             <View style={styles.badge}>
               <AppText style={styles.badgeText}>{selectedMission.difficulty}</AppText>
             </View>
@@ -1612,7 +1623,7 @@ export default function NativeApp() {
         >
           <View style={styles.featuredMissionMeta}>
             <View style={{ gap: 5 }}>
-              <AppText style={styles.missionNumberLabel}>MISSION {featuredMission.number}</AppText>
+              <MissionNumberMark number={featuredMission.number} />
               <AppText style={styles.archiveLabel}>ROTATING PICK</AppText>
             </View>
             <View style={styles.badge}>
@@ -1657,7 +1668,7 @@ export default function NativeApp() {
               onPress={() => openMissionForTest(mission)}
             >
               <View style={styles.missionIdentityRow}>
-                <AppText style={styles.missionNumberLabel}>MISSION {mission.number}</AppText>
+                <MissionNumberMark number={mission.number} />
                 <View style={styles.badge}>
                   <AppText style={styles.badgeText}>{mission.difficulty}</AppText>
                 </View>
@@ -2020,12 +2031,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   todayMissionCard: {
-    borderColor: colors.blue,
-    backgroundColor: colors.blueSubtle,
+    borderColor: colors.lime,
+    backgroundColor: colors.limeSubtle,
   },
   featuredMissionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   missionIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  missionNumberLabel: { fontFamily: 'Archivo_600SemiBold', fontSize: 15, lineHeight: 20, color: colors.ink, letterSpacing: 0.8 },
+  missionNumberMark: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  missionNumberWord: {
+    ...typography.tiny,
+    color: colors.muted,
+    letterSpacing: 1.1,
+  },
+  missionNumberBlock: {
+    width: 46,
+    height: 38,
+    borderRadius: radius.sm,
+    borderTopLeftRadius: 0,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  missionNumberDigits: {
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 20,
+    lineHeight: 24,
+    color: colors.ink,
+    letterSpacing: 0.4,
+  },
   filterRail: { gap: 8, paddingRight: 8 },
   filterChip: {
     minHeight: 38,

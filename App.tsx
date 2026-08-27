@@ -257,7 +257,7 @@ function MissionCard({ locked, onPress }: { locked?: boolean; onPress?: () => vo
       style={[styles.missionCard, locked && { opacity: 0.72 }]}
     >
       <View style={styles.pill}>
-        <AppText style={styles.pillText}>{d.category}</AppText>
+        <AppText style={styles.pillText}>{d.difficulty}</AppText>
       </View>
       <AppText style={styles.h3}>{d.title}</AppText>
       <AppText style={styles.smallMuted}>{d.hook}</AppText>
@@ -344,7 +344,7 @@ function MissionDetail({
           ]}
         >
           <View style={[styles.limeDot, { backgroundColor: colors.blue }]} />
-          <AppText style={{ ...styles.label, color: colors.blue }}>SOUND MISSION</AppText>
+          <AppText style={{ ...styles.label, color: colors.blue }}>{activeMission.difficulty}</AppText>
         </View>
 
         <TitleBlock title={activeMission.title} body={activeMission.summary} />
@@ -1084,7 +1084,7 @@ export default function App() {
 
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [history, setHistory] = useState<Screen[]>([]);
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
 
   const go = (next: Screen) => {
     if (next === 'capture') setCaptureMode(pendingCapture);

@@ -1,6 +1,6 @@
 import { registerRootComponent } from 'expo';
 import { Platform } from 'react-native';
 import WebApp from './App';
-import NativeRoot from './NativeRoot';
+import NativeStartup from './NativeStartup';
 
-registerRootComponent(Platform.OS === 'web' ? WebApp : NativeRoot);
+registerRootComponent(Platform.OS === 'web' ? WebApp : NativeStartup);

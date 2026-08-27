@@ -10,11 +10,13 @@ def r(old, new, label):
         raise SystemExit(f'{label}: {c}')
     s = s.replace(old, new, 1)
 
-choices = """{([\n              ['photo', 'camera-outline', 'Photo'],\n              ['video', 'videocam-outline', 'Video'],\n              ['audio', 'mic-outline', 'Audio'],\n            ] as const).map(([mode, icon, label]) => ("""
-filtered = """{captureChoices\n              .filter(([mode]) => selectedMission.acceptedEvidence.includes(mode))\n              .map(([mode, icon, label]) => ("""
-if s.count(choices) != 2:
-    raise SystemExit(f'capture choices: {s.count(choices)}')
-s = s.replace(choices, filtered)
+for spaces in (14, 18):
+    indent = ' ' * spaces
+    choices = "{([\n" + indent + "['photo', 'camera-outline', 'Photo'],\n" + indent + "['video', 'videocam-outline', 'Video'],\n" + indent + "['audio', 'mic-outline', 'Audio'],\n" + (' ' * (spaces - 2)) + "] as const).map(([mode, icon, label]) => ("
+    filtered = "{captureChoices\n" + (' ' * (spaces - 2)) + ".filter(([mode]) => selectedMission.acceptedEvidence.includes(mode))\n" + (' ' * (spaces - 2)) + ".map(([mode, icon, label]) => ("
+    if s.count(choices) != 1:
+        raise SystemExit(f'capture choices {spaces}: {s.count(choices)}')
+    s = s.replace(choices, filtered, 1)
 
 r("""          <AppText style={styles.h1}>{selectedMission.title}</AppText>
           <AppText style={styles.body}>{selectedMission.summary}</AppText>

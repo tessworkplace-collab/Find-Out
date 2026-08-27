@@ -303,7 +303,7 @@ export default function NativeApp() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
   const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
   const [screen, setScreen] = useState<Screen>('discover');
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [facing, setFacing] = useState<CameraType>('back');
   const [cameraReady, setCameraReady] = useState(false);
@@ -1044,7 +1044,7 @@ export default function NativeApp() {
         <TopBar title="Mission" onBack={() => setScreen('discover')} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.category}</AppText>
+            <AppText style={styles.badgeText}>{activeMission.difficulty}</AppText>
           </View>
           <AppText style={styles.h1}>{activeMission.title}</AppText>
           <AppText style={styles.body}>{activeMission.summary}</AppText>
@@ -1075,7 +1075,7 @@ export default function NativeApp() {
         <AppText style={styles.body}>Open one mission and investigate it your way.</AppText>
         <Pressable style={styles.missionCard} onPress={() => setScreen('mission')}>
           <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.category}</AppText>
+            <AppText style={styles.badgeText}>{activeMission.difficulty}</AppText>
           </View>
           <AppText style={styles.h3}>{activeMission.title}</AppText>
           <AppText style={styles.body}>{activeMission.hook}</AppText>

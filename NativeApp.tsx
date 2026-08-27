@@ -69,6 +69,7 @@ type Evidence = {
 };
 
 const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';
+const AUDIO_MAX_DURATION_MS = 10_000;
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
   return (
@@ -261,11 +262,17 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
   const loadedDurationMs = Math.round((status.duration ?? 0) * 1000);
   const totalMs = loadedDurationMs > 0 ? loadedDurationMs : durationMs;
 
-  const togglePlayback = () => {
+  const togglePlayback = async () => {
     if (status.playing) {
       player.pause();
       return;
     }
+
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+      shouldRouteThroughEarpiece: false,
+    });
 
     if (totalMs > 0 && currentMs >= totalMs - 250) {
       player.seekTo(0);
@@ -316,6 +323,8 @@ export default function NativeApp() {
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
+  const audioAutoStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioStopInProgress = useRef(false);
   const suppressDiscoverAutosave = useRef(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [videoMicPermission, requestVideoMicPermission] = useMicrophonePermissions();
@@ -580,20 +589,41 @@ export default function NativeApp() {
     }
   };
 
+  const stopAudioRecording = async (durationOverride?: number) => {
+    if (audioStopInProgress.current) return;
+    audioStopInProgress.current = true;
+
+    if (audioAutoStopTimer.current) {
+      clearTimeout(audioAutoStopTimer.current);
+      audioAutoStopTimer.current = null;
+    }
+
+    try {
+      await audioRecorder.stop();
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+      });
+
+      const uri = audioRecorder.uri ?? audioState.url;
+      if (uri) {
+        await commitEvidence({
+          type: 'audio',
+          uri,
+          durationMs: durationOverride ?? audioState.durationMillis,
+        });
+        setScreen('preview');
+      }
+    } finally {
+      audioStopInProgress.current = false;
+    }
+  };
+
   const toggleAudio = async () => {
     try {
       if (audioState.isRecording) {
-        await audioRecorder.stop();
-        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-        const uri = audioRecorder.uri ?? audioState.url;
-        if (uri) {
-          await commitEvidence({
-            type: 'audio',
-            uri,
-            durationMs: audioState.durationMillis,
-          });
-          setScreen('preview');
-        }
+        await stopAudioRecording();
         return;
       }
 
@@ -606,9 +636,22 @@ export default function NativeApp() {
         return;
       }
 
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+      });
       await audioRecorder.prepareToRecordAsync();
+      audioStopInProgress.current = false;
       audioRecorder.record();
+      audioAutoStopTimer.current = setTimeout(() => {
+        void stopAudioRecording(AUDIO_MAX_DURATION_MS).catch(error => {
+          Alert.alert(
+            'Audio error',
+            error instanceof Error ? error.message : 'Could not finish audio recording.',
+          );
+        });
+      }, AUDIO_MAX_DURATION_MS);
     } catch (error) {
       Alert.alert(
         'Audio error',
@@ -651,7 +694,7 @@ export default function NativeApp() {
               disabled={recording}
             />
             <AppText style={styles.h1}>Capture the sound</AppText>
-            <AppText style={styles.body}>Stay nearby and capture the sound clearly.</AppText>
+            <AppText style={styles.body}>Stay nearby and capture the sound clearly. Recording stops automatically at 10 seconds.</AppText>
             <View style={styles.audioPanel}>
               <Ionicons name="mic-outline" size={64} color={colors.blue} />
               <View style={styles.waveform}>

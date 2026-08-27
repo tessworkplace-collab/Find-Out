@@ -51,10 +51,20 @@ import {
 import {
   addCompletedDiscovery,
   approveCompletedDiscovery,
+  attachUnlockedTrophies,
   CompletedDiscovery,
   loadCompletedDiscoveries,
   updateCompletedDiscovery,
 } from './src/discoveryStorage';
+import {
+  equipTitle,
+  loadProgression,
+  ProgressionState,
+  trophyById,
+  trophyDefinitions,
+  TrophyId,
+  unlockEligibleTrophies,
+} from './src/progressionStorage';
 import { colors, radius, typography } from './src/theme';
 
 type Screen =
@@ -68,7 +78,9 @@ type Screen =
   | 'complete'
   | 'discoveries'
   | 'discovery-detail'
-  | 'edit-discovery';
+  | 'edit-discovery'
+  | 'profile'
+  | 'trophies';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
 type MissionFilter = 'ALL' | Mission['difficulty'];
@@ -81,20 +93,20 @@ type Evidence = {
 
 const DEFAULT_OBSERVATION = '';
 const AUDIO_MAX_DURATION_MS = 10_000;
-const TEST_MISSION_IDS = [
-  'why-is-this-here',
-  'the-queue',
-  'dead-link',
-  'no-reviews-yet',
-  'offline-famous',
-  'local-knowledge',
-];
-const testMissions = missions.filter(mission => TEST_MISSION_IDS.includes(mission.id));
+const MISSION_OFFER_COUNT = 6;
+const captureChoices = [
+  ['photo', 'camera-outline', 'Photo'],
+  ['video', 'videocam-outline', 'Video'],
+  ['audio', 'mic-outline', 'Audio'],
+] as const;
 
-function getMissionOfDay() {
-  const now = new Date();
-  const dayKey = Number(`${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`);
-  return testMissions[dayKey % testMissions.length] ?? activeMission;
+function createMissionOffers(excludeMissionId?: string) {
+  const pool = missions.filter(mission => mission.id !== excludeMissionId);
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, MISSION_OFFER_COUNT);
 }
 
 function missionNumberFor(missionId: string) {
@@ -349,9 +361,12 @@ export default function NativeApp() {
   const [discoveries, setDiscoveries] = useState<CompletedDiscovery[]>([]);
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
   const [missionFilter, setMissionFilter] = useState<MissionFilter>('ALL');
+  const [missionOffers, setMissionOffers] = useState<Mission[]>(() => createMissionOffers());
   const [selectedDiscovery, setSelectedDiscovery] = useState<CompletedDiscovery | null>(null);
   const [editObservation, setEditObservation] = useState('');
   const [editLocation, setEditLocation] = useState('');
+  const [progression, setProgression] = useState<ProgressionState>({ unlockedTrophies: [], equippedTitleId: null });
+  const [newlyUnlockedTrophyIds, setNewlyUnlockedTrophyIds] = useState<TrophyId[]>([]);
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
@@ -459,6 +474,10 @@ export default function NativeApp() {
   ]);
 
   useEffect(() => {
+    loadProgression().then(setProgression).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     if (!isVideoRecording) return;
 
     const timer = setInterval(() => {
@@ -525,6 +544,7 @@ export default function NativeApp() {
   };
 
   const goCapture = (mode: CaptureMode) => {
+    if (!selectedMission.acceptedEvidence.includes(mode)) return;
     setCaptureMode(mode);
     setCameraReady(false);
     setVideoDurationMs(0);
@@ -696,36 +716,46 @@ export default function NativeApp() {
   };
 
   const resetMission = async () => {
-    try {
-      await clearDraft(evidence);
-    } catch {
-      // Reset the UI even if local cleanup fails.
-    }
+    try { await clearDraft(evidence); } catch {}
+    const nextOffers = createMissionOffers(selectedMission.id);
+    setMissionOffers(nextOffers);
+    setSelectedMission(nextOffers[0] ?? activeMission);
     setEvidence(null);
     setSubmitted(false);
     setHighestStep(0);
     setObservation(DEFAULT_OBSERVATION);
     setLocation('');
-    setCaptureMode('photo');
+    setCaptureMode((nextOffers[0] ?? activeMission).acceptedEvidence[0] ?? 'photo');
     setCaptureOptionsVisible(false);
+    setNewlyUnlockedTrophyIds([]);
     setScreen('discover');
   };
 
-  const openMissionForTest = async (mission: Mission) => {
-    try {
-      await clearDraft(evidence);
-    } catch {
-      // Starting another test mission should still reset the visible flow.
-    }
+  const startMission = async (mission: Mission) => {
+    try { await clearDraft(evidence); } catch {}
     setSelectedMission(mission);
     setEvidence(null);
     setSubmitted(false);
     setHighestStep(0);
     setObservation(DEFAULT_OBSERVATION);
     setLocation('');
-    setCaptureMode('photo');
+    setCaptureMode(mission.acceptedEvidence[0] ?? 'photo');
     setCaptureOptionsVisible(false);
+    setNewlyUnlockedTrophyIds([]);
     setScreen('mission');
+  };
+
+  const openMissionForTest = (mission: Mission) => {
+    const hasProgress = selectedMission.id !== mission.id && !submitted &&
+      (highestStep > 0 || Boolean(evidence) || observation.length > 0 || location.length > 0);
+    if (hasProgress) {
+      Alert.alert('Abandon current mission?', 'Your current draft will be removed if you start another mission.', [
+        { text: 'Keep current mission', style: 'cancel' },
+        { text: 'Abandon & start new', style: 'destructive', onPress: () => void startMission(mission) },
+      ]);
+      return;
+    }
+    void startMission(mission);
   };
 
   const openMyDiscoveries = async () => {
@@ -778,37 +808,58 @@ export default function NativeApp() {
     }
   };
 
+  const openProfile = async () => {
+    const [savedDiscoveries, savedProgression] = await Promise.all([
+      loadCompletedDiscoveries(),
+      loadProgression(),
+    ]);
+    setDiscoveries(savedDiscoveries);
+    setProgression(savedProgression);
+    setScreen('profile');
+  };
+
+  const toggleEquippedTitle = async (id: TrophyId) => {
+    try {
+      const next = await equipTitle(progression.equippedTitleId === id ? null : id);
+      setProgression(next);
+    } catch (error) {
+      Alert.alert('Could not equip title', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
   const submitDiscovery = async () => {
     if (!evidence || submittingDiscovery) return;
-
     setSubmittingDiscovery(true);
     try {
       const completed = await addCompletedDiscovery({
         missionId: selectedMission.id,
         missionTitle: selectedMission.title,
-        category: selectedMission.difficulty,
+        difficulty: selectedMission.difficulty,
         observation,
         location,
         evidence,
       });
-      setDiscoveries(current => [completed, ...current.filter(item => item.id !== completed.id)]);
+      const saved = await loadCompletedDiscoveries();
+      const unlockResult = await unlockEligibleTrophies(saved);
+      const unlockedIds = unlockResult.newlyUnlocked.map(item => item.id);
+      if (unlockedIds.length > 0) await attachUnlockedTrophies(completed.id, unlockedIds);
+      setDiscoveries(await loadCompletedDiscoveries());
+      setProgression(unlockResult.state);
+      setNewlyUnlockedTrophyIds(unlockedIds);
       setSubmitted(true);
       updateHighestStep(3);
       setScreen('complete');
     } catch (error) {
-      Alert.alert(
-        'Could not save discovery',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      Alert.alert('Could not save discovery', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSubmittingDiscovery(false);
     }
   };
 
-  const missionOfDay = getMissionOfDay();
-  const filteredTestMissions = testMissions
+  const featuredMission = missionOffers[0] ?? activeMission;
+  const filteredTestMissions = missionOffers
     .filter(mission => missionFilter === 'ALL' || mission.difficulty === missionFilter)
-    .filter(mission => mission.id !== missionOfDay.id);
+    .filter(mission => mission.id !== featuredMission.id);
 
   const renderCapture = () => {
     const recording = isVideoRecording || audioState.isRecording;
@@ -1087,10 +1138,27 @@ export default function NativeApp() {
             <View style={styles.reviewStatusCard}>
               <Ionicons name="time-outline" size={22} color={colors.blue} />
               <View style={{ flex: 1, gap: 3 }}>
-                <AppText style={styles.label}>PENDING REVIEW · TITLE LOCKED</AppText>
+                <AppText style={styles.label}>PENDING REVIEW</AppText>
                 <AppText style={styles.smallMuted}>Approval is simulated in this prototype from the field note detail.</AppText>
               </View>
             </View>
+            {newlyUnlockedTrophyIds.length > 0 ? (
+              <View style={styles.trophyUnlockWrap}>
+                <AppText style={styles.eyebrow}>TROPHY UNLOCKED</AppText>
+                {newlyUnlockedTrophyIds.map(id => {
+                  const trophy = trophyById(id);
+                  return trophy ? (
+                    <View key={id} style={styles.trophyUnlockCard}>
+                      <Ionicons name="trophy-outline" size={30} color={colors.blue} />
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <AppText style={styles.h3}>{trophy.title}</AppText>
+                        <AppText style={styles.smallMuted}>{trophy.description}</AppText>
+                      </View>
+                    </View>
+                  ) : null;
+                })}
+              </View>
+            ) : null}
             {evidence ? (
               <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
             ) : null}
@@ -1108,7 +1176,7 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <TopBar title="Field note" onBack={() => setScreen('discoveries')} />
         <ScrollView contentContainerStyle={styles.content}>
-          <AppText style={styles.eyebrow}>FIELD NOTE · MISSION {missionNumberFor(selectedDiscovery.missionId)} · {selectedDiscovery.category}</AppText>
+          <AppText style={styles.eyebrow}>FIELD NOTE · MISSION {missionNumberFor(selectedDiscovery.missionId)} · {selectedDiscovery.difficulty}</AppText>
           <AppText style={styles.h1}>{selectedDiscovery.missionTitle}</AppText>
 
           <View style={styles.reviewStatusCard}>
@@ -1121,8 +1189,8 @@ export default function NativeApp() {
               <AppText style={styles.label}>{approved ? 'APPROVED' : 'PENDING REVIEW'}</AppText>
               <AppText style={styles.smallMuted}>
                 {approved
-                  ? 'TITLE UNLOCKED · APPROVED DISCOVERY'
-                  : 'TITLE LOCKED · APPROVAL REQUIRED'}
+                  ? 'APPROVED DISCOVERY'
+                  : 'DISCOVERY APPROVAL REQUIRED'}
               </AppText>
             </View>
           </View>
@@ -1168,7 +1236,7 @@ export default function NativeApp() {
           <AppText style={styles.h1}>Update what you found</AppText>
           <AppText style={styles.body}>
             {selectedDiscovery.reviewStatus === 'approved'
-              ? 'Editing sends this discovery back to Pending Review and locks the title again.'
+              ? 'Editing sends this discovery back to Pending Review.'
               : 'Your changes will be resubmitted for review.'}
           </AppText>
           <View style={styles.field}>
@@ -1193,6 +1261,83 @@ export default function NativeApp() {
             />
           </View>
           <PrimaryButton label="Resubmit changes" onPress={resubmitDiscoveryChanges} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'profile') {
+    const equipped = progression.equippedTitleId ? trophyById(progression.equippedTitleId) : undefined;
+    return (
+      <SafeAreaView style={styles.safe}>
+        <TopBar title="Profile" onBack={() => setScreen('discover')} />
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.profileAvatar}>
+            <Ionicons name="person-outline" size={38} color={colors.blue} />
+          </View>
+          <AppText style={[styles.h1, { textAlign: 'center' }]}>Explorer profile</AppText>
+          <AppText style={[styles.body, { textAlign: 'center' }]}>
+            {discoveries.length} discoveries · {new Set(discoveries.map(item => item.missionId)).size} missions completed
+          </AppText>
+          <View style={styles.equippedTitleCard}>
+            <AppText style={styles.eyebrow}>EQUIPPED TITLE</AppText>
+            <AppText style={styles.h3}>{equipped?.title ?? 'No title equipped'}</AppText>
+            <AppText style={styles.smallMuted}>
+              {equipped ? 'Visible as your current profile title.' : 'Unlock a trophy, then choose a title to equip.'}
+            </AppText>
+          </View>
+          <PrimaryButton label="View trophies & titles" onPress={() => setScreen('trophies')} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'trophies') {
+    const unlockedMap = new Map(progression.unlockedTrophies.map(item => [item.id, item]));
+    return (
+      <SafeAreaView style={styles.safe}>
+        <TopBar title="Trophies & titles" onBack={() => setScreen('profile')} />
+        <ScrollView contentContainerStyle={styles.content}>
+          <AppText style={styles.eyebrow}>ACHIEVEMENT FIELD LOG</AppText>
+          <AppText style={styles.h1}>Trophies</AppText>
+          <AppText style={styles.body}>
+            {progression.unlockedTrophies.length} of {trophyDefinitions.length} unlocked. Trophies support completion; exploration stays central.
+          </AppText>
+          {progression.unlockedTrophies.length === 0 ? (
+            <View style={styles.emptyJournalCard}>
+              <Ionicons name="trophy-outline" size={30} color={colors.blue} />
+              <AppText style={styles.h3}>No trophies unlocked yet</AppText>
+              <AppText style={styles.body}>Complete missions and document what you find.</AppText>
+            </View>
+          ) : null}
+          {trophyDefinitions.map(trophy => {
+            const unlocked = unlockedMap.get(trophy.id);
+            const hiddenLocked = trophy.hidden && !unlocked;
+            const equipped = progression.equippedTitleId === trophy.id;
+            return (
+              <View key={trophy.id} style={[styles.trophyCardNative, !unlocked && styles.trophyCardLockedNative]}>
+                <View style={styles.trophyIconNative}>
+                  <Ionicons name={hiddenLocked ? 'help-outline' : 'trophy-outline'} size={30} color={unlocked ? colors.blue : colors.muted} />
+                </View>
+                <View style={{ flex: 1, gap: 5 }}>
+                  <AppText style={styles.h3}>{hiddenLocked ? 'Hidden trophy' : trophy.title}</AppText>
+                  <AppText style={styles.smallMuted}>
+                    {hiddenLocked ? 'Keep exploring to reveal this trophy.' : trophy.description}
+                  </AppText>
+                  {unlocked ? (
+                    <AppText style={styles.archiveLabel}>UNLOCKED {new Date(unlocked.unlockedAt).toLocaleDateString()}</AppText>
+                  ) : (
+                    <AppText style={styles.archiveLabel}>LOCKED</AppText>
+                  )}
+                </View>
+                {unlocked ? (
+                  <Pressable style={styles.equipPill} onPress={() => void toggleEquippedTitle(trophy.id)}>
+                    <AppText style={styles.badgeText}>{equipped ? 'UNEQUIP' : 'EQUIP'}</AppText>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })}
         </ScrollView>
       </SafeAreaView>
     );
@@ -1259,7 +1404,7 @@ export default function NativeApp() {
                 <View style={styles.featuredBody}>
                   <View style={styles.featuredMetaRow}>
                     <View style={styles.badge}>
-                      <AppText style={styles.badgeText}>{latestDiscovery.category}</AppText>
+                      <AppText style={styles.badgeText}>{latestDiscovery.difficulty}</AppText>
                     </View>
                     <AppText style={styles.discoveryNumber}>MISSION {missionNumberFor(latestDiscovery.missionId)}</AppText>
                   </View>
@@ -1295,7 +1440,7 @@ export default function NativeApp() {
                       </View>
                       <View style={{ flex: 1, gap: 5 }}>
                         <View style={styles.earlierMetaRow}>
-                          <AppText style={styles.eyebrow}>{item.category}</AppText>
+                          <AppText style={styles.eyebrow}>{item.difficulty}</AppText>
                           <AppText style={styles.smallMuted}>MISSION {missionNumberFor(item.missionId)}</AppText>
                         </View>
                         <AppText style={styles.h3}>{item.missionTitle}</AppText>
@@ -1332,11 +1477,9 @@ export default function NativeApp() {
           <AppText style={styles.h1}>Capture what you found</AppText>
           <AppText style={styles.body}>Choose the format that best shows your discovery.</AppText>
           <View style={styles.captureOptions}>
-            {([
-              ['photo', 'camera-outline', 'Photo'],
-              ['video', 'videocam-outline', 'Video'],
-              ['audio', 'mic-outline', 'Audio'],
-            ] as const).map(([mode, icon, label]) => (
+            {captureChoices
+            .filter(([mode]) => selectedMission.acceptedEvidence.includes(mode))
+            .map(([mode, icon, label]) => (
               <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
                 <View style={styles.optionIcon}>
                   <Ionicons name={icon} size={28} color={colors.blue} />
@@ -1370,6 +1513,12 @@ export default function NativeApp() {
             <AppText style={styles.label}>Keep investigating</AppText>
             <AppText style={styles.body}>{selectedMission.guidance}</AppText>
           </View>
+          {selectedMission.safetyNote ? (
+            <View style={styles.safetyCard}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={colors.blue} />
+              <AppText style={[styles.smallMuted, { flex: 1 }]}>{selectedMission.safetyNote}</AppText>
+            </View>
+          ) : null}
           {!captureOptionsVisible ? (
             <PrimaryButton
               label="I found something"
@@ -1382,11 +1531,9 @@ export default function NativeApp() {
                 Choose the format that best shows your discovery.
               </AppText>
               <View style={styles.captureOptions}>
-                {([
-                  ['photo', 'camera-outline', 'Photo'],
-                  ['video', 'videocam-outline', 'Video'],
-                  ['audio', 'mic-outline', 'Audio'],
-                ] as const).map(([mode, icon, label]) => (
+                {captureChoices
+                .filter(([mode]) => selectedMission.acceptedEvidence.includes(mode))
+                .map(([mode, icon, label]) => (
                   <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
                     <View style={styles.optionIcon}>
                       <Ionicons name={icon} size={28} color={colors.blue} />
@@ -1416,6 +1563,22 @@ export default function NativeApp() {
           </View>
           <AppText style={styles.h1}>{selectedMission.title}</AppText>
           <AppText style={styles.body}>{selectedMission.summary}</AppText>
+          <View style={styles.missionRequirements}>
+            <AppText style={styles.eyebrow}>ACCEPTED EVIDENCE</AppText>
+            <AppText style={styles.label}>
+              {selectedMission.acceptedEvidence.map(type => type[0].toUpperCase() + type.slice(1)).join(' · ')}
+            </AppText>
+            <AppText style={styles.smallMuted}>Short finding required</AppText>
+          </View>
+          {selectedMission.safetyNote ? (
+            <View style={styles.safetyCard}>
+              <Ionicons name="shield-checkmark-outline" size={22} color={colors.blue} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <AppText style={styles.label}>Explore safely</AppText>
+                <AppText style={styles.smallMuted}>{selectedMission.safetyNote}</AppText>
+              </View>
+            </View>
+          ) : null}
           <Stepper active={0} maxStep={highestStep} onStepPress={goToStep} />
           <View style={styles.clueCard}>
             <AppText style={styles.eyebrow}>CLUE 01 · OPEN</AppText>
@@ -1442,23 +1605,23 @@ export default function NativeApp() {
         <AppText style={styles.h1}>Something familiar. Something unnoticed.</AppText>
         <AppText style={styles.body}>Open one mission and investigate it your way.</AppText>
 
-        <AppText style={styles.eyebrow}>MISSION OF THE DAY</AppText>
+        <AppText style={styles.eyebrow}>FEATURED MISSION</AppText>
         <Pressable
           style={[styles.missionCard, styles.todayMissionCard]}
-          onPress={() => openMissionForTest(missionOfDay)}
+          onPress={() => openMissionForTest(featuredMission)}
         >
           <View style={styles.featuredMissionMeta}>
             <View style={{ gap: 5 }}>
-              <AppText style={styles.missionNumberLabel}>MISSION {missionOfDay.number}</AppText>
-              <AppText style={styles.archiveLabel}>TODAY'S PICK</AppText>
+              <AppText style={styles.missionNumberLabel}>MISSION {featuredMission.number}</AppText>
+              <AppText style={styles.archiveLabel}>ROTATING PICK</AppText>
             </View>
             <View style={styles.badge}>
-              <AppText style={styles.badgeText}>{missionOfDay.difficulty}</AppText>
+              <AppText style={styles.badgeText}>{featuredMission.difficulty}</AppText>
             </View>
           </View>
-          <AppText style={styles.h2}>{missionOfDay.title}</AppText>
-          <AppText style={styles.body}>{missionOfDay.hook}</AppText>
-          <AppText style={styles.openMission}>OPEN TODAY'S MISSION →</AppText>
+          <AppText style={styles.h2}>{featuredMission.title}</AppText>
+          <AppText style={styles.body}>{featuredMission.hook}</AppText>
+          <AppText style={styles.openMission}>OPEN FEATURED MISSION →</AppText>
         </Pressable>
 
         <AppText style={styles.eyebrow}>EXPLORE MISSIONS</AppText>
@@ -1510,6 +1673,14 @@ export default function NativeApp() {
           <View style={{ flex: 1 }}>
             <AppText style={styles.label}>My Discoveries</AppText>
             <AppText style={styles.smallMuted}>Your completed field notes</AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+        </Pressable>
+        <Pressable style={styles.linkedEvidence} onPress={() => void openProfile()}>
+          <Ionicons name="person-outline" size={26} color={colors.blue} />
+          <View style={{ flex: 1 }}>
+            <AppText style={styles.label}>Profile & Trophies</AppText>
+            <AppText style={styles.smallMuted}>Titles, trophies and progress</AppText>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.muted} />
         </Pressable>
@@ -1892,6 +2063,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+  },
+  missionRequirements: {
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    padding: 16,
+    gap: 6,
+    backgroundColor: colors.white,
+  },
+  safetyCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+  },
+  trophyUnlockWrap: { width: '100%', gap: 10 },
+  trophyUnlockCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.limeSubtle,
+  },
+  profileAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    alignSelf: 'center',
+    backgroundColor: colors.blueSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  equippedTitleCard: {
+    padding: 18,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    gap: 8,
+    backgroundColor: colors.blueSubtle,
+  },
+  trophyCardNative: {
+    minHeight: 118,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    padding: 16,
+    backgroundColor: colors.white,
+  },
+  trophyCardLockedNative: { opacity: 0.7, backgroundColor: colors.softGrey },
+  trophyIconNative: {
+    width: 58,
+    height: 58,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  equipPill: {
+    minHeight: 36,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.blueSubtle,
   },
   nativeNote: {
     flexDirection: 'row',

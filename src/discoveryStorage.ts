@@ -19,6 +19,7 @@ export type CompletedDiscovery = {
   observation: string;
   location: string;
   evidence: CompletedEvidence;
+  evidenceMissing?: boolean;
   completedAt: string;
   unlockedTrophyIds: string[];
   reviewStatus: ReviewStatus;
@@ -87,6 +88,7 @@ function normalizeDiscovery(item: LegacyCompletedDiscovery): CompletedDiscovery 
     observation: item.observation ?? '',
     location: item.location ?? '',
     evidence: item.evidence,
+    evidenceMissing: false,
     completedAt: item.completedAt ?? new Date(0).toISOString(),
     unlockedTrophyIds: Array.isArray(item.unlockedTrophyIds) ? item.unlockedTrophyIds : [],
     reviewStatus: item.reviewStatus ?? 'pending',
@@ -95,22 +97,34 @@ function normalizeDiscovery(item: LegacyCompletedDiscovery): CompletedDiscovery 
   };
 }
 
+async function withEvidenceState(item: CompletedDiscovery): Promise<CompletedDiscovery> {
+  if (!item.evidence.uri.startsWith('file://')) return item;
+  try {
+    const info = await FileSystem.getInfoAsync(item.evidence.uri);
+    return { ...item, evidenceMissing: !info.exists };
+  } catch {
+    return { ...item, evidenceMissing: true };
+  }
+}
+
 export async function loadCompletedDiscoveries(): Promise<CompletedDiscovery[]> {
   try {
     const raw = await AsyncStorage.getItem(DISCOVERIES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed
+    const normalized = parsed
       .map(item => normalizeDiscovery(item as LegacyCompletedDiscovery))
       .filter((item): item is CompletedDiscovery => Boolean(item));
+    return Promise.all(normalized.map(withEvidenceState));
   } catch {
     return [];
   }
 }
 
 async function saveCompletedDiscoveries(items: CompletedDiscovery[]) {
-  await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify(items));
+  const stableItems = items.map(({ evidenceMissing: _evidenceMissing, ...item }) => item);
+  await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify(stableItems));
 }
 
 export async function addCompletedDiscovery(input: {
@@ -133,6 +147,7 @@ export async function addCompletedDiscovery(input: {
     observation: input.observation,
     location: input.location,
     evidence: stableEvidence,
+    evidenceMissing: false,
     completedAt,
     unlockedTrophyIds: [],
     reviewStatus: 'pending',

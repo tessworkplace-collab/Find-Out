@@ -72,7 +72,6 @@ type Screen =
 
 type CaptureMode = 'photo' | 'video' | 'audio';
 type MissionFilter = 'ALL' | Mission['difficulty'];
-type MissionSort = 'LOW_TO_HIGH' | 'HIGH_TO_LOW' | 'MISSION_NO';
 
 type Evidence = {
   type: CaptureMode;
@@ -91,12 +90,15 @@ const TEST_MISSION_IDS = [
   'local-knowledge',
 ];
 const testMissions = missions.filter(mission => TEST_MISSION_IDS.includes(mission.id));
-const difficultyRank: Record<Mission['difficulty'], number> = { EASY: 0, MEDIUM: 1, HARD: 2 };
 
 function getMissionOfDay() {
   const now = new Date();
   const dayKey = Number(`${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`);
   return testMissions[dayKey % testMissions.length] ?? activeMission;
+}
+
+function missionNumberFor(missionId: string) {
+  return missions.find(mission => mission.id === missionId)?.number ?? '--';
 }
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
@@ -347,7 +349,6 @@ export default function NativeApp() {
   const [discoveries, setDiscoveries] = useState<CompletedDiscovery[]>([]);
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
   const [missionFilter, setMissionFilter] = useState<MissionFilter>('ALL');
-  const [missionSort, setMissionSort] = useState<MissionSort>('LOW_TO_HIGH');
   const [selectedDiscovery, setSelectedDiscovery] = useState<CompletedDiscovery | null>(null);
   const [editObservation, setEditObservation] = useState('');
   const [editLocation, setEditLocation] = useState('');
@@ -777,15 +778,6 @@ export default function NativeApp() {
     }
   };
 
-  const chooseMissionSort = () => {
-    Alert.alert('Sort missions', 'Choose an order', [
-      { text: 'Difficulty: Low → High', onPress: () => setMissionSort('LOW_TO_HIGH') },
-      { text: 'Difficulty: High → Low', onPress: () => setMissionSort('HIGH_TO_LOW') },
-      { text: 'Mission number', onPress: () => setMissionSort('MISSION_NO') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
   const submitDiscovery = async () => {
     if (!evidence || submittingDiscovery) return;
 
@@ -814,20 +806,9 @@ export default function NativeApp() {
   };
 
   const missionOfDay = getMissionOfDay();
-  const sortedTestMissions = [...testMissions]
+  const filteredTestMissions = testMissions
     .filter(mission => missionFilter === 'ALL' || mission.difficulty === missionFilter)
-    .filter(mission => mission.id !== missionOfDay.id)
-    .sort((a, b) => {
-      if (missionSort === 'LOW_TO_HIGH') return difficultyRank[a.difficulty] - difficultyRank[b.difficulty];
-      if (missionSort === 'HIGH_TO_LOW') return difficultyRank[b.difficulty] - difficultyRank[a.difficulty];
-      return Number(a.number) - Number(b.number);
-    });
-  const sortLabel =
-    missionSort === 'LOW_TO_HIGH'
-      ? 'LOW → HIGH'
-      : missionSort === 'HIGH_TO_LOW'
-        ? 'HIGH → LOW'
-        : 'MISSION NO.';
+    .filter(mission => mission.id !== missionOfDay.id);
 
   const renderCapture = () => {
     const recording = isVideoRecording || audioState.isRecording;
@@ -1034,7 +1015,7 @@ export default function NativeApp() {
         />
         <ScrollView contentContainerStyle={styles.content}>
           <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.eyebrow}>FIELD NOTE · 03</AppText>
+          <AppText style={styles.eyebrow}>FIELD NOTE · MISSION {selectedMission.number}</AppText>
           <AppText style={styles.h1}>Describe what you found</AppText>
           <AppText style={styles.body}>
             Add just enough context for someone else to understand what you found.
@@ -1127,7 +1108,7 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <TopBar title="Field note" onBack={() => setScreen('discoveries')} />
         <ScrollView contentContainerStyle={styles.content}>
-          <AppText style={styles.eyebrow}>FIELD NOTE · {selectedDiscovery.category}</AppText>
+          <AppText style={styles.eyebrow}>FIELD NOTE · MISSION {missionNumberFor(selectedDiscovery.missionId)} · {selectedDiscovery.category}</AppText>
           <AppText style={styles.h1}>{selectedDiscovery.missionTitle}</AppText>
 
           <View style={styles.reviewStatusCard}>
@@ -1280,7 +1261,7 @@ export default function NativeApp() {
                     <View style={styles.badge}>
                       <AppText style={styles.badgeText}>{latestDiscovery.category}</AppText>
                     </View>
-                    <AppText style={styles.discoveryNumber}>01</AppText>
+                    <AppText style={styles.discoveryNumber}>MISSION {missionNumberFor(latestDiscovery.missionId)}</AppText>
                   </View>
                   <AppText style={styles.h2}>{latestDiscovery.missionTitle}</AppText>
                   <AppText style={styles.featuredObservation}>{latestDiscovery.observation}</AppText>
@@ -1315,7 +1296,7 @@ export default function NativeApp() {
                       <View style={{ flex: 1, gap: 5 }}>
                         <View style={styles.earlierMetaRow}>
                           <AppText style={styles.eyebrow}>{item.category}</AppText>
-                          <AppText style={styles.smallMuted}>{(index + 2).toString().padStart(2, '0')}</AppText>
+                          <AppText style={styles.smallMuted}>MISSION {missionNumberFor(item.missionId)}</AppText>
                         </View>
                         <AppText style={styles.h3}>{item.missionTitle}</AppText>
                         <AppText style={styles.body}>{item.observation}</AppText>
@@ -1427,8 +1408,11 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <TopBar title="Mission" onBack={() => setScreen('discover')} />
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{selectedMission.difficulty}</AppText>
+          <View style={styles.missionIdentityRow}>
+            <AppText style={styles.missionNumberLabel}>MISSION {selectedMission.number}</AppText>
+            <View style={styles.badge}>
+              <AppText style={styles.badgeText}>{selectedMission.difficulty}</AppText>
+            </View>
           </View>
           <AppText style={styles.h1}>{selectedMission.title}</AppText>
           <AppText style={styles.body}>{selectedMission.summary}</AppText>
@@ -1464,23 +1448,20 @@ export default function NativeApp() {
           onPress={() => openMissionForTest(missionOfDay)}
         >
           <View style={styles.featuredMissionMeta}>
+            <View style={{ gap: 5 }}>
+              <AppText style={styles.missionNumberLabel}>MISSION {missionOfDay.number}</AppText>
+              <AppText style={styles.archiveLabel}>TODAY'S PICK</AppText>
+            </View>
             <View style={styles.badge}>
               <AppText style={styles.badgeText}>{missionOfDay.difficulty}</AppText>
             </View>
-            <AppText style={styles.archiveLabel}>TODAY'S PICK</AppText>
           </View>
           <AppText style={styles.h2}>{missionOfDay.title}</AppText>
           <AppText style={styles.body}>{missionOfDay.hook}</AppText>
           <AppText style={styles.openMission}>OPEN TODAY'S MISSION →</AppText>
         </Pressable>
 
-        <View style={styles.exploreHeader}>
-          <AppText style={styles.eyebrow}>EXPLORE MISSIONS</AppText>
-          <Pressable style={styles.sortButton} onPress={chooseMissionSort}>
-            <Ionicons name="swap-vertical-outline" size={17} color={colors.blue} />
-            <AppText style={styles.sortButtonText}>{sortLabel}</AppText>
-          </Pressable>
-        </View>
+        <AppText style={styles.eyebrow}>EXPLORE MISSIONS</AppText>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -1501,19 +1482,22 @@ export default function NativeApp() {
             );
           })}
         </ScrollView>
-        {sortedTestMissions.length === 0 ? (
+        {filteredTestMissions.length === 0 ? (
           <View style={styles.emptyMissionFilter}>
             <AppText style={styles.body}>No other missions match this filter today.</AppText>
           </View>
         ) : (
-          sortedTestMissions.map(mission => (
+          filteredTestMissions.map(mission => (
             <Pressable
               key={mission.id}
               style={styles.missionCard}
               onPress={() => openMissionForTest(mission)}
             >
-              <View style={styles.badge}>
-                <AppText style={styles.badgeText}>{mission.difficulty}</AppText>
+              <View style={styles.missionIdentityRow}>
+                <AppText style={styles.missionNumberLabel}>MISSION {mission.number}</AppText>
+                <View style={styles.badge}>
+                  <AppText style={styles.badgeText}>{mission.difficulty}</AppText>
+                </View>
               </View>
               <AppText style={styles.h3}>{mission.title}</AppText>
               <AppText style={styles.body}>{mission.hook}</AppText>
@@ -1869,7 +1853,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blueSubtle,
   },
   featuredMissionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  exploreHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  missionIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  missionNumberLabel: { fontFamily: 'Archivo_600SemiBold', fontSize: 15, lineHeight: 20, color: colors.ink, letterSpacing: 0.8 },
   filterRail: { gap: 8, paddingRight: 8 },
   filterChip: {
     minHeight: 38,
@@ -1884,16 +1869,6 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   filterChipText: { ...typography.label, color: colors.text },
   filterChipTextActive: { color: colors.white },
-  sortButton: {
-    minHeight: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    borderRadius: radius.full,
-    backgroundColor: colors.blueSubtle,
-  },
-  sortButtonText: { ...typography.tiny, color: colors.blue },
   emptyMissionFilter: { paddingVertical: 18, borderBottomWidth: 1, borderColor: colors.border },
   reviewStatusCard: {
     flexDirection: 'row',

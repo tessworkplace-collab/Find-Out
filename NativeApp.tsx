@@ -314,6 +314,7 @@ export default function NativeApp() {
   const [observation, setObservation] = useState(DEFAULT_OBSERVATION);
   const [location, setLocation] = useState('');
   const [draftReady, setDraftReady] = useState(false);
+  const [captureOptionsVisible, setCaptureOptionsVisible] = useState(false);
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
@@ -335,10 +336,12 @@ export default function NativeApp() {
 
         const restoredEvidence = draft.evidence as Evidence | null;
         const restoredScreen: Screen =
-          draft.screen === 'capture' || draft.screen === 'preview'
+          draft.screen === 'capture' ||
+          draft.screen === 'preview' ||
+          draft.screen === 'evidence'
             ? restoredEvidence
               ? 'document'
-              : 'evidence'
+              : 'investigate'
             : draft.screen === 'complete' && !draft.submitted
               ? 'document'
               : (draft.screen as Screen);
@@ -384,7 +387,7 @@ export default function NativeApp() {
       screen === 'capture' || screen === 'preview'
         ? evidence
           ? 'document'
-          : 'evidence'
+          : 'investigate'
         : screen;
 
     const timer = setTimeout(() => {
@@ -431,7 +434,7 @@ export default function NativeApp() {
 
   const getRestorableScreen = (): Screen => {
     if (screen === 'capture' || screen === 'preview') {
-      return evidence ? 'document' : 'evidence';
+      return evidence ? 'document' : 'investigate';
     }
     return screen;
   };
@@ -468,7 +471,7 @@ export default function NativeApp() {
       return;
     }
     if (index === 2) {
-      setScreen(evidence ? 'document' : 'evidence');
+      setScreen(evidence ? 'document' : 'investigate');
       return;
     }
     if (index === 3 && submitted) {
@@ -496,6 +499,7 @@ export default function NativeApp() {
     }
 
     setEvidence(stableEvidence);
+    updateHighestStep(2);
     return stableEvidence;
   };
 
@@ -658,6 +662,7 @@ export default function NativeApp() {
     setObservation(DEFAULT_OBSERVATION);
     setLocation('');
     setCaptureMode('audio');
+    setCaptureOptionsVisible(false);
     setScreen('discover');
   };
 
@@ -669,12 +674,12 @@ export default function NativeApp() {
         <SafeAreaView style={styles.safe}>
           <TopBar
             title="Record audio"
-            onBack={() => setScreen('evidence')}
+            onBack={() => setScreen('investigate')}
             onExit={exitMissionToHome}
           />
           <ScrollView contentContainerStyle={styles.content}>
             <Stepper
-              active={2}
+              active={1}
               maxStep={highestStep}
               onStepPress={goToStep}
               disabled={recording}
@@ -709,7 +714,7 @@ export default function NativeApp() {
         <SafeAreaView style={styles.safe}>
           <TopBar
             title={captureMode === 'photo' ? 'Take photo' : 'Record video'}
-            onBack={() => setScreen('evidence')}
+            onBack={() => setScreen('investigate')}
             onExit={exitMissionToHome}
           />
           <PermissionGate
@@ -727,7 +732,7 @@ export default function NativeApp() {
         <SafeAreaView style={styles.safe}>
           <TopBar
             title="Record video"
-            onBack={() => setScreen('evidence')}
+            onBack={() => setScreen('investigate')}
             onExit={exitMissionToHome}
           />
           <PermissionGate
@@ -744,12 +749,12 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <TopBar
           title={captureMode === 'photo' ? 'Take photo' : 'Record video'}
-          onBack={() => setScreen('evidence')}
+          onBack={() => setScreen('investigate')}
           onExit={recording ? undefined : exitMissionToHome}
         />
         <View style={styles.cameraScreen}>
           <Stepper
-            active={2}
+            active={1}
             maxStep={highestStep}
             onStepPress={goToStep}
             disabled={recording}
@@ -832,7 +837,7 @@ export default function NativeApp() {
           onExit={exitMissionToHome}
         />
         <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
+          <Stepper active={1} maxStep={highestStep} onStepPress={goToStep} />
           <AppText style={styles.h1}>Check your evidence</AppText>
           <AppText style={styles.body}>
             Play it back or review it before you continue to your field note.
@@ -861,7 +866,7 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <TopBar
           title="Document"
-          onBack={() => setScreen(evidence ? 'preview' : 'evidence')}
+          onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
           onExit={exitMissionToHome}
         />
         <ScrollView contentContainerStyle={styles.content}>
@@ -1000,13 +1005,34 @@ export default function NativeApp() {
             <AppText style={styles.label}>Pay closer attention</AppText>
             <AppText style={styles.body}>Notice what stands out, then decide what matters.</AppText>
           </View>
-          <PrimaryButton
-            label="I found something"
-            onPress={() => {
-              updateHighestStep(2);
-              setScreen('evidence');
-            }}
-          />
+          {!captureOptionsVisible ? (
+            <PrimaryButton
+              label="I found something"
+              onPress={() => setCaptureOptionsVisible(true)}
+            />
+          ) : (
+            <View style={styles.questionCard}>
+              <AppText style={styles.eyebrow}>CAPTURE WHAT YOU FOUND</AppText>
+              <AppText style={styles.body}>
+                Choose the format that best shows your discovery.
+              </AppText>
+              <View style={styles.captureOptions}>
+                {([
+                  ['photo', 'camera-outline', 'Photo'],
+                  ['video', 'videocam-outline', 'Video'],
+                  ['audio', 'mic-outline', 'Audio'],
+                ] as const).map(([mode, icon, label]) => (
+                  <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
+                    <View style={styles.optionIcon}>
+                      <Ionicons name={icon} size={28} color={colors.blue} />
+                    </View>
+                    <AppText style={styles.label}>{label}</AppText>
+                  </Pressable>
+                ))}
+              </View>
+              <AppText style={styles.smallMuted}>Nothing is submitted until Step 4.</AppText>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     );

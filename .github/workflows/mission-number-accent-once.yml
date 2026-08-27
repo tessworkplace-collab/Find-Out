@@ -1,0 +1,37 @@
+name: Mission number accent once
+
+on:
+  push:
+    branches:
+      - codex/mission-difficulty
+    paths:
+      - .github/workflows/mission-number-accent-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mission-difficulty
+          fetch-depth: 0
+      - name: Apply mission number accent
+        run: python .github/scripts/mission_number_accent.py
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Verify diff
+        run: git diff --check
+      - name: Commit clean patch
+        run: |
+          rm .github/scripts/mission_number_accent.py .github/workflows/mission-number-accent-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NativeApp.tsx .github/scripts/mission_number_accent.py .github/workflows/mission-number-accent-once.yml
+          git commit -m "style: use lime mission number identity"
+          git push origin HEAD:codex/mission-difficulty

@@ -1,0 +1,82 @@
+name: Reconcile PR5 v2 once
+
+on:
+  push:
+    branches:
+      - codex/mission-difficulty
+    paths:
+      - .github/workflows/reconcile-pr5-v2-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: codex/mission-difficulty
+          fetch-depth: 0
+
+      - name: Restore completed-discoveries implementation from main
+        run: |
+          git fetch origin main
+          git checkout origin/main -- NativeApp.tsx src/discoveryStorage.ts
+
+      - name: Integrate mission difficulty with current flows
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def one(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          p = Path('NativeApp.tsx')
+          text = p.read_text()
+          text = one(text, "const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';", "const DEFAULT_OBSERVATION = '';", 'native default observation')
+          text = one(text, "const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');", "const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');", 'native initial capture')
+          text = one(text, "    setCaptureMode('audio');", "    setCaptureMode('photo');", 'native reset capture')
+          refs = text.count('activeMission.category')
+          if refs != 3:
+              raise SystemExit(f'native metadata: expected 3 category refs, found {refs}')
+          text = text.replace('activeMission.category', 'activeMission.difficulty')
+          text = one(text, '<AppText style={styles.h1}>Follow the signal</AppText>', '<AppText style={styles.h1}>Look closer</AppText>', 'native heading')
+          text = one(text, '<AppText style={styles.body}>Move slowly. Let one detail lead you to the next.</AppText>', '<AppText style={styles.body}>Use the mission question as a guide, then follow the clues you notice.</AppText>', 'native intro')
+          text = one(text, '<AppText style={styles.h3}>What familiar sound are you following?</AppText>', '<AppText style={styles.h3}>{activeMission.question}</AppText>', 'native question')
+          text = one(text, '<AppText style={styles.label}>Pay closer attention</AppText>', '<AppText style={styles.label}>Keep investigating</AppText>', 'native guidance title')
+          text = one(text, '<AppText style={styles.body}>Notice what stands out, then decide what matters.</AppText>', '<AppText style={styles.body}>{activeMission.guidance}</AppText>', 'native guidance body')
+          p.write_text(text)
+
+          p = Path('App.tsx')
+          text = p.read_text()
+          text = one(text, '<AppText style={styles.h1}>Follow the signal</AppText>', '<AppText style={styles.h1}>Look closer</AppText>', 'web heading')
+          text = one(text, '              Move slowly. Let one detail lead you to the next.', '              Use the mission question as a guide, then follow the clues you notice.', 'web intro')
+          text = one(text, '            What familiar sound are you following?', '            {activeMission.question}', 'web question')
+          text = one(text, '<AppText style={styles.guidanceTitle}>Pay closer attention</AppText>', '<AppText style={styles.guidanceTitle}>Keep investigating</AppText>', 'web guidance title')
+          text = one(text, '            Notice what stands out, then decide what matters.', '            {activeMission.guidance}', 'web guidance body')
+          text = one(text, "let pendingCapture: CaptureMode = 'audio';", "let pendingCapture: CaptureMode = 'photo';", 'web pending capture')
+          text = one(text, '<AppText style={styles.eyebrow}>A SOUND YOU KNOW</AppText>', '<AppText style={styles.eyebrow}>{activeMission.title.toUpperCase()}</AppText>', 'web other label')
+          text = one(text, '          Notice a familiar sound you hear often but rarely pay attention to.', '          {activeMission.summary}', 'web other summary')
+          text = one(text, '<AppText style={styles.eyebrow}>A SOUND YOU KNOW  ·  SAME MISSION</AppText>', '<AppText style={styles.eyebrow}>{activeMission.title.toUpperCase()} · SAME MISSION</AppText>', 'web detail label')
+          p.write_text(text)
+          PY
+
+      - name: Verify integrated branch
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+          git diff --check
+          test -f src/discoveryStorage.ts
+
+      - name: Commit reconciliation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add App.tsx NativeApp.tsx src/discoveryStorage.ts
+          git commit -m "fix: integrate mission difficulty with discoveries flow"
+          git push origin HEAD:codex/mission-difficulty

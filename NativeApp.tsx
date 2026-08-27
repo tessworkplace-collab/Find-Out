@@ -262,17 +262,11 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
   const loadedDurationMs = Math.round((status.duration ?? 0) * 1000);
   const totalMs = loadedDurationMs > 0 ? loadedDurationMs : durationMs;
 
-  const togglePlayback = async () => {
+  const togglePlayback = () => {
     if (status.playing) {
       player.pause();
       return;
     }
-
-    await setAudioModeAsync({
-      allowsRecording: false,
-      playsInSilentMode: true,
-      shouldRouteThroughEarpiece: false,
-    });
 
     if (totalMs > 0 && currentMs >= totalMs - 250) {
       player.seekTo(0);
@@ -600,11 +594,7 @@ export default function NativeApp() {
 
     try {
       await audioRecorder.stop();
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-        shouldRouteThroughEarpiece: false,
-      });
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
 
       const uri = audioRecorder.uri ?? audioState.url;
       if (uri) {
@@ -636,11 +626,7 @@ export default function NativeApp() {
         return;
       }
 
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-        shouldRouteThroughEarpiece: false,
-      });
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await audioRecorder.prepareToRecordAsync();
       audioStopInProgress.current = false;
       audioRecorder.record();

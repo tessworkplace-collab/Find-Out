@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { EvidenceType, MissionDifficulty, missions } from './data';
 
 export type CompletedEvidence = {
-  type: 'photo' | 'video' | 'audio';
+  type: EvidenceType;
   uri: string;
   durationMs?: number;
 };
@@ -13,14 +14,27 @@ export type CompletedDiscovery = {
   id: string;
   missionId: string;
   missionTitle: string;
-  category: string;
+  difficulty: MissionDifficulty;
+  evidenceType: EvidenceType;
   observation: string;
   location: string;
   evidence: CompletedEvidence;
   completedAt: string;
+  unlockedTrophyIds: string[];
   reviewStatus: ReviewStatus;
   reviewedAt?: string;
   editedAt?: string;
+};
+
+type LegacyCompletedDiscovery = Partial<CompletedDiscovery> & {
+  id?: string;
+  missionId?: string;
+  missionTitle?: string;
+  category?: string;
+  observation?: string;
+  location?: string;
+  evidence?: CompletedEvidence;
+  completedAt?: string;
 };
 
 const DISCOVERIES_KEY = 'findout:completed-discoveries:v1';
@@ -51,26 +65,58 @@ async function copyEvidence(evidence: CompletedEvidence, id: string) {
   return { ...evidence, uri: destination };
 }
 
+function isDifficulty(value: unknown): value is MissionDifficulty {
+  return value === 'EASY' || value === 'MEDIUM' || value === 'HARD';
+}
+
+function normalizeDiscovery(item: LegacyCompletedDiscovery): CompletedDiscovery | null {
+  if (!item.id || !item.missionId || !item.evidence?.uri) return null;
+  const mission = missions.find(candidate => candidate.id === item.missionId);
+  const legacyDifficulty = isDifficulty(item.category) ? item.category : undefined;
+  const difficulty = isDifficulty(item.difficulty)
+    ? item.difficulty
+    : mission?.difficulty ?? legacyDifficulty ?? 'MEDIUM';
+  const evidenceType = item.evidenceType ?? item.evidence.type;
+
+  return {
+    id: item.id,
+    missionId: item.missionId,
+    missionTitle: item.missionTitle ?? mission?.title ?? 'Mission',
+    difficulty,
+    evidenceType,
+    observation: item.observation ?? '',
+    location: item.location ?? '',
+    evidence: item.evidence,
+    completedAt: item.completedAt ?? new Date(0).toISOString(),
+    unlockedTrophyIds: Array.isArray(item.unlockedTrophyIds) ? item.unlockedTrophyIds : [],
+    reviewStatus: item.reviewStatus ?? 'pending',
+    reviewedAt: item.reviewedAt,
+    editedAt: item.editedAt,
+  };
+}
+
 export async function loadCompletedDiscoveries(): Promise<CompletedDiscovery[]> {
   try {
     const raw = await AsyncStorage.getItem(DISCOVERIES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? (parsed as CompletedDiscovery[]).map(item => ({
-          ...item,
-          reviewStatus: item.reviewStatus ?? 'pending',
-        }))
-      : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(item => normalizeDiscovery(item as LegacyCompletedDiscovery))
+      .filter((item): item is CompletedDiscovery => Boolean(item));
   } catch {
     return [];
   }
 }
 
+async function saveCompletedDiscoveries(items: CompletedDiscovery[]) {
+  await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify(items));
+}
+
 export async function addCompletedDiscovery(input: {
   missionId: string;
   missionTitle: string;
-  category: string;
+  difficulty: MissionDifficulty;
   observation: string;
   location: string;
   evidence: CompletedEvidence;
@@ -82,22 +128,34 @@ export async function addCompletedDiscovery(input: {
     id,
     missionId: input.missionId,
     missionTitle: input.missionTitle,
-    category: input.category,
+    difficulty: input.difficulty,
+    evidenceType: stableEvidence.type,
     observation: input.observation,
     location: input.location,
     evidence: stableEvidence,
     completedAt,
+    unlockedTrophyIds: [],
     reviewStatus: 'pending',
   };
 
   const existing = await loadCompletedDiscoveries();
-  await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify([item, ...existing]));
+  await saveCompletedDiscoveries([item, ...existing]);
   return item;
 }
 
-
-async function saveCompletedDiscoveries(items: CompletedDiscovery[]) {
-  await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify(items));
+export async function attachUnlockedTrophies(id: string, trophyIds: string[]) {
+  if (trophyIds.length === 0) return null;
+  const existing = await loadCompletedDiscoveries();
+  const index = existing.findIndex(item => item.id === id);
+  if (index < 0) return null;
+  const updated: CompletedDiscovery = {
+    ...existing[index],
+    unlockedTrophyIds: Array.from(new Set([...existing[index].unlockedTrophyIds, ...trophyIds])),
+  };
+  const next = [...existing];
+  next[index] = updated;
+  await saveCompletedDiscoveries(next);
+  return updated;
 }
 
 export async function updateCompletedDiscovery(

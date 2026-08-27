@@ -40,7 +40,7 @@ import {
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
-import { activeMission } from './src/data';
+import { activeMission, missions, Mission } from './src/data';
 import {
   clearDraft,
   loadDraft,
@@ -76,6 +76,15 @@ type Evidence = {
 
 const DEFAULT_OBSERVATION = '';
 const AUDIO_MAX_DURATION_MS = 10_000;
+const TEST_MISSION_IDS = [
+  'why-is-this-here',
+  'the-queue',
+  'dead-link',
+  'no-reviews-yet',
+  'offline-famous',
+  'local-knowledge',
+];
+const testMissions = missions.filter(mission => TEST_MISSION_IDS.includes(mission.id));
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
   return (
@@ -309,6 +318,7 @@ export default function NativeApp() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
   const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
   const [screen, setScreen] = useState<Screen>('discover');
+  const [selectedMission, setSelectedMission] = useState<Mission>(activeMission);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [facing, setFacing] = useState<CameraType>('back');
@@ -353,6 +363,11 @@ export default function NativeApp() {
             : draft.screen === 'complete' && !draft.submitted
               ? 'document'
               : (draft.screen as Screen);
+
+        const restoredMission = draft.missionId
+          ? missions.find(mission => mission.id === draft.missionId)
+          : undefined;
+        if (restoredMission) setSelectedMission(restoredMission);
 
         setCaptureMode(draft.captureMode);
         setEvidence(restoredEvidence);
@@ -400,6 +415,7 @@ export default function NativeApp() {
 
     const timer = setTimeout(() => {
       saveDraft({
+        missionId: selectedMission.id,
         screen: restorableScreen,
         captureMode,
         evidence,
@@ -453,6 +469,7 @@ export default function NativeApp() {
     suppressDiscoverAutosave.current = true;
     try {
       await saveDraft({
+        missionId: selectedMission.id,
         screen: getRestorableScreen(),
         captureMode,
         evidence,
@@ -674,6 +691,23 @@ export default function NativeApp() {
     setScreen('discover');
   };
 
+  const openMissionForTest = async (mission: Mission) => {
+    try {
+      await clearDraft(evidence);
+    } catch {
+      // Starting another test mission should still reset the visible flow.
+    }
+    setSelectedMission(mission);
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(0);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode('photo');
+    setCaptureOptionsVisible(false);
+    setScreen('mission');
+  };
+
   const openMyDiscoveries = async () => {
     const saved = await loadCompletedDiscoveries();
     setDiscoveries(saved);
@@ -686,9 +720,9 @@ export default function NativeApp() {
     setSubmittingDiscovery(true);
     try {
       const completed = await addCompletedDiscovery({
-        missionId: activeMission.id,
-        missionTitle: activeMission.title,
-        category: activeMission.difficulty,
+        missionId: selectedMission.id,
+        missionTitle: selectedMission.title,
+        category: selectedMission.difficulty,
         observation,
         location,
         evidence,
@@ -1154,11 +1188,11 @@ export default function NativeApp() {
           <AppText style={styles.body}>Use the mission question as a guide, then follow the clues you notice.</AppText>
           <View style={styles.questionCard}>
             <AppText style={styles.eyebrow}>YOUR MISSION</AppText>
-            <AppText style={styles.h3}>{activeMission.question}</AppText>
+            <AppText style={styles.h3}>{selectedMission.question}</AppText>
           </View>
           <View style={styles.guidanceCard}>
             <AppText style={styles.label}>Keep investigating</AppText>
-            <AppText style={styles.body}>{activeMission.guidance}</AppText>
+            <AppText style={styles.body}>{selectedMission.guidance}</AppText>
           </View>
           {!captureOptionsVisible ? (
             <PrimaryButton
@@ -1199,15 +1233,15 @@ export default function NativeApp() {
         <TopBar title="Mission" onBack={() => setScreen('discover')} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.difficulty}</AppText>
+            <AppText style={styles.badgeText}>{selectedMission.difficulty}</AppText>
           </View>
-          <AppText style={styles.h1}>{activeMission.title}</AppText>
-          <AppText style={styles.body}>{activeMission.summary}</AppText>
+          <AppText style={styles.h1}>{selectedMission.title}</AppText>
+          <AppText style={styles.body}>{selectedMission.summary}</AppText>
           <Stepper active={0} maxStep={highestStep} onStepPress={goToStep} />
           <View style={styles.clueCard}>
             <AppText style={styles.eyebrow}>CLUE 01 · OPEN</AppText>
-            <AppText style={styles.h3}>{activeMission.question}</AppText>
-            <AppText style={styles.body}>{activeMission.guidance}</AppText>
+            <AppText style={styles.h3}>{selectedMission.question}</AppText>
+            <AppText style={styles.body}>{selectedMission.guidance}</AppText>
           </View>
           <PrimaryButton
             label="Open the mission"
@@ -1228,14 +1262,21 @@ export default function NativeApp() {
       <ScrollView contentContainerStyle={styles.content}>
         <AppText style={styles.h1}>Something familiar. Something unnoticed.</AppText>
         <AppText style={styles.body}>Open one mission and investigate it your way.</AppText>
-        <Pressable style={styles.missionCard} onPress={() => setScreen('mission')}>
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.difficulty}</AppText>
-          </View>
-          <AppText style={styles.h3}>{activeMission.title}</AppText>
-          <AppText style={styles.body}>{activeMission.hook}</AppText>
-          <AppText style={styles.openMission}>OPEN MISSION →</AppText>
-        </Pressable>
+        <AppText style={styles.eyebrow}>TRY A MISSION</AppText>
+        {testMissions.map(mission => (
+          <Pressable
+            key={mission.id}
+            style={styles.missionCard}
+            onPress={() => openMissionForTest(mission)}
+          >
+            <View style={styles.badge}>
+              <AppText style={styles.badgeText}>{mission.difficulty}</AppText>
+            </View>
+            <AppText style={styles.h3}>{mission.title}</AppText>
+            <AppText style={styles.body}>{mission.hook}</AppText>
+            <AppText style={styles.openMission}>OPEN MISSION →</AppText>
+          </Pressable>
+        ))}
         <Pressable style={styles.linkedEvidence} onPress={openMyDiscoveries}>
           <Ionicons name="bookmark-outline" size={26} color={colors.blue} />
           <View style={{ flex: 1 }}>

@@ -383,9 +383,9 @@ function Investigate({
             <View style={styles.signalDot} />
           </View>
           <View style={{ flex: 1, gap: 24 }}>
-            <AppText style={styles.h1}>Follow the signal</AppText>
+            <AppText style={styles.h1}>Look closer</AppText>
             <AppText style={styles.body}>
-              Move slowly. Let one detail lead you to the next.
+              Use the mission question as a guide, then follow the clues you notice.
             </AppText>
           </View>
         </View>
@@ -393,15 +393,15 @@ function Investigate({
         <View style={styles.questionCard}>
           <AppText style={styles.eyebrow}>YOUR MISSION</AppText>
           <AppText style={styles.questionText}>
-            What familiar sound are you following?
+            {activeMission.question}
           </AppText>
           <View style={styles.smallLimeDot} />
         </View>
 
         <View style={styles.guidance}>
-          <AppText style={styles.guidanceTitle}>Pay closer attention</AppText>
+          <AppText style={styles.guidanceTitle}>Keep investigating</AppText>
           <AppText style={styles.guidanceBody}>
-            Notice what stands out, then decide what matters.
+            {activeMission.guidance}
           </AppText>
         </View>
 
@@ -468,7 +468,7 @@ function Evidence({
   );
 }
 
-let pendingCapture: CaptureMode = 'audio';
+let pendingCapture: CaptureMode = 'photo';
 
 function goCapture(go: (s: Screen) => void, mode: CaptureMode) {
   pendingCapture = mode;
@@ -760,9 +760,9 @@ function OtherDiscoveries({
           title="See what others found"
           body="See how others responded to the same mission."
         />
-        <AppText style={styles.eyebrow}>A SOUND YOU KNOW</AppText>
+        <AppText style={styles.eyebrow}>{activeMission.title.toUpperCase()}</AppText>
         <AppText style={styles.body}>
-          Notice a familiar sound you hear often but rarely pay attention to.
+          {activeMission.summary}
         </AppText>
 
         <View style={[styles.response, { backgroundColor: colors.limeSubtle }]}>
@@ -805,7 +805,7 @@ function DiscoveryDetail({ back }: { back: () => void }) {
     <Frame>
       <TopBar title="Other discovery" onBack={back} />
       <ScrollView contentContainerStyle={styles.detail}>
-        <AppText style={styles.eyebrow}>A SOUND YOU KNOW  ·  SAME MISSION</AppText>
+        <AppText style={styles.eyebrow}>{activeMission.title.toUpperCase()} · SAME MISSION</AppText>
         <AppText style={styles.detailTitle}>{d.title}</AppText>
         <AppText style={styles.label}>{d.location}</AppText>
 

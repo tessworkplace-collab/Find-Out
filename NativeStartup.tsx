@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Archivo_600SemiBold,
   useFonts as useArchivoFonts,
@@ -103,8 +104,9 @@ export default function NativeStartup() {
       </View>
 
       <View style={styles.card}>
-        <View style={styles.iconWrap}>
-          <Text style={styles.icon}>↻</Text>
+        <View style={styles.draftHint}>
+          <Ionicons name="time-outline" size={18} color={colors.blue} />
+          <Text style={styles.draftHintText}>SAVED DRAFT</Text>
         </View>
         <Text style={styles.title}>Continue your draft?</Text>
         <Text style={styles.body}>
@@ -178,19 +180,18 @@ const styles = StyleSheet.create({
     marginBottom: 'auto',
     gap: 18,
   },
-  iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.blueSubtle,
+  draftHint: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    gap: 7,
   },
-  icon: {
+  draftHintText: {
     color: colors.blue,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 30,
-    lineHeight: 34,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    lineHeight: 16,
+    letterSpacing: 0.8,
   },
   title: {
     color: colors.ink,

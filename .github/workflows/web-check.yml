@@ -6,42 +6,8 @@ on:
     branches:
       - main
       - feat/initial-expo-prototype
-      - codex/mission-difficulty
-
-permissions:
-  contents: write
 
 jobs:
-  patch-test-missions:
-    if: "github.event_name == 'push' && github.event.head_commit.message == 'chore: run mission test picker patch'"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: codex/mission-difficulty
-          fetch-depth: 0
-
-      - name: Apply mission picker patch
-        run: python .github/scripts/add_test_missions.py
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Typecheck app
-        run: npm run typecheck
-
-      - name: Verify diff
-        run: git diff --check
-
-      - name: Commit patch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add NativeApp.tsx src/draftStorage.ts
-          git commit -m "feat: add selectable missions for native testing"
-          git push origin HEAD:codex/mission-difficulty
-
   web-build:
     runs-on: ubuntu-latest
     steps:

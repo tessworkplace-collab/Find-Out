@@ -1,0 +1,131 @@
+name: Apply investigate capture flow once
+
+on:
+  push:
+    branches:
+      - feat/real-evidence-flow
+    paths:
+      - .github/workflows/investigate-capture-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v5
+        with:
+          ref: feat/real-evidence-flow
+          fetch-depth: 0
+
+      - name: Merge capture choice into Investigate
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('NativeApp.tsx')
+          text = path.read_text()
+
+          def replace_once(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "  const [draftReady, setDraftReady] = useState(false);",
+              "  const [draftReady, setDraftReady] = useState(false);\n  const [captureOptionsVisible, setCaptureOptionsVisible] = useState(false);",
+              'capture option state',
+          )
+
+          replace_once(
+              """        const restoredScreen: Screen =\n          draft.screen === 'capture' || draft.screen === 'preview'\n            ? restoredEvidence\n              ? 'document'\n              : 'evidence'\n            : draft.screen === 'complete' && !draft.submitted\n              ? 'document'\n              : (draft.screen as Screen);""",
+              """        const restoredScreen: Screen =\n          draft.screen === 'capture' ||\n          draft.screen === 'preview' ||\n          draft.screen === 'evidence'\n            ? restoredEvidence\n              ? 'document'\n              : 'investigate'\n            : draft.screen === 'complete' && !draft.submitted\n              ? 'document'\n              : (draft.screen as Screen);""",
+              'draft restore mapping',
+          )
+
+          replace_once(
+              """    const restorableScreen =\n      screen === 'capture' || screen === 'preview'\n        ? evidence\n          ? 'document'\n          : 'evidence'\n        : screen;""",
+              """    const restorableScreen =\n      screen === 'capture' || screen === 'preview'\n        ? evidence\n          ? 'document'\n          : 'investigate'\n        : screen;""",
+              'autosave restorable screen',
+          )
+
+          replace_once(
+              """  const getRestorableScreen = (): Screen => {\n    if (screen === 'capture' || screen === 'preview') {\n      return evidence ? 'document' : 'evidence';\n    }\n    return screen;\n  };""",
+              """  const getRestorableScreen = (): Screen => {\n    if (screen === 'capture' || screen === 'preview') {\n      return evidence ? 'document' : 'investigate';\n    }\n    return screen;\n  };""",
+              'exit restorable screen',
+          )
+
+          replace_once(
+              """    if (index === 2) {\n      setScreen(evidence ? 'document' : 'evidence');\n      return;\n    }""",
+              """    if (index === 2) {\n      setScreen(evidence ? 'document' : 'investigate');\n      return;\n    }""",
+              'step 3 navigation',
+          )
+
+          replace_once(
+              """    setEvidence(stableEvidence);\n    return stableEvidence;""",
+              """    setEvidence(stableEvidence);\n    updateHighestStep(2);\n    return stableEvidence;""",
+              'unlock document after capture',
+          )
+
+          back_old = "onBack={() => setScreen('evidence')}"
+          back_count = text.count(back_old)
+          if back_count != 4:
+              raise SystemExit(f'capture back navigation: expected 4 matches, found {back_count}')
+          text = text.replace(back_old, "onBack={() => setScreen('investigate')}")
+
+          replace_once(
+              "onBack={() => setScreen(evidence ? 'preview' : 'evidence')}",
+              "onBack={() => setScreen(evidence ? 'preview' : 'investigate')}",
+              'document back navigation',
+          )
+
+          replace_once(
+              """    setCaptureMode('audio');\n    setScreen('discover');""",
+              """    setCaptureMode('audio');\n    setCaptureOptionsVisible(false);\n    setScreen('discover');""",
+              'reset capture options',
+          )
+
+          # Capture and preview are part of Step 2 (Investigate), not Step 3 (Document).
+          capture_start = text.index('  const renderCapture = () => {')
+          capture_end = text.index("  if (screen === 'capture') return renderCapture();", capture_start)
+          capture_block = text[capture_start:capture_end]
+          capture_active_count = capture_block.count('active={2}')
+          if capture_active_count != 2:
+              raise SystemExit(f'capture stepper: expected 2 active=2 matches, found {capture_active_count}')
+          capture_block = capture_block.replace('active={2}', 'active={1}')
+          text = text[:capture_start] + capture_block + text[capture_end:]
+
+          preview_start = text.index("  if (screen === 'preview' && evidence) {")
+          document_start = text.index("  if (screen === 'document') {", preview_start)
+          preview_block = text[preview_start:document_start]
+          if preview_block.count('active={2}') != 1:
+              raise SystemExit('preview stepper: expected one active=2 match')
+          preview_block = preview_block.replace('active={2}', 'active={1}', 1)
+          text = text[:preview_start] + preview_block + text[document_start:]
+
+          replace_once(
+              """          <PrimaryButton\n            label=\"I found something\"\n            onPress={() => {\n              updateHighestStep(2);\n              setScreen('evidence');\n            }}\n          />""",
+              """          {!captureOptionsVisible ? (\n            <PrimaryButton\n              label=\"I found something\"\n              onPress={() => setCaptureOptionsVisible(true)}\n            />\n          ) : (\n            <View style={styles.questionCard}>\n              <AppText style={styles.eyebrow}>CAPTURE WHAT YOU FOUND</AppText>\n              <AppText style={styles.body}>\n                Choose the format that best shows your discovery.\n              </AppText>\n              <View style={styles.captureOptions}>\n                {([\n                  ['photo', 'camera-outline', 'Photo'],\n                  ['video', 'videocam-outline', 'Video'],\n                  ['audio', 'mic-outline', 'Audio'],\n                ] as const).map(([mode, icon, label]) => (\n                  <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>\n                    <View style={styles.optionIcon}>\n                      <Ionicons name={icon} size={28} color={colors.blue} />\n                    </View>\n                    <AppText style={styles.label}>{label}</AppText>\n                  </Pressable>\n                ))}\n              </View>\n              <AppText style={styles.smallMuted}>Nothing is submitted until Step 4.</AppText>\n            </View>\n          )}""",
+              'investigate capture options',
+          )
+
+          path.write_text(text)
+          PY
+
+      - name: Typecheck
+        run: npm install --no-audit --no-fund && npm run typecheck
+
+      - name: Commit flow update
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NativeApp.tsx
+          git diff --cached --check
+          git commit -m "feat: capture evidence inside investigate step"
+          git push origin HEAD:feat/real-evidence-flow

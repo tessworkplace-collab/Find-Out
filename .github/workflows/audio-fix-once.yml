@@ -1,0 +1,72 @@
+name: Apply audio evidence fix once
+
+on:
+  push:
+    branches:
+      - feat/real-evidence-flow
+    paths:
+      - .github/workflows/audio-fix-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-audio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v5
+        with:
+          ref: feat/real-evidence-flow
+          fetch-depth: 0
+
+      - name: Patch audio recording and playback
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('NativeApp.tsx')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  "const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';",
+                  "const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';\nconst AUDIO_MAX_DURATION_MS = 10_000;",
+              ),
+              (
+                  """  const togglePlayback = () => {\n    if (status.playing) {\n      player.pause();\n      return;\n    }\n\n    if (totalMs > 0 && currentMs >= totalMs - 250) {\n      player.seekTo(0);\n    }\n    player.play();\n  };""",
+                  """  const togglePlayback = async () => {\n    if (status.playing) {\n      player.pause();\n      return;\n    }\n\n    await setAudioModeAsync({\n      allowsRecording: false,\n      playsInSilentMode: true,\n      shouldRouteThroughEarpiece: false,\n    });\n\n    if (totalMs > 0 && currentMs >= totalMs - 250) {\n      player.seekTo(0);\n    }\n    player.play();\n  };""",
+              ),
+              (
+                  """  const videoStartedAt = useRef<number | null>(null);\n  const suppressDiscoverAutosave = useRef(false);""",
+                  """  const videoStartedAt = useRef<number | null>(null);\n  const audioAutoStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);\n  const audioStopInProgress = useRef(false);\n  const suppressDiscoverAutosave = useRef(false);""",
+              ),
+              (
+                  """  const toggleAudio = async () => {\n    try {\n      if (audioState.isRecording) {\n        await audioRecorder.stop();\n        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });\n        const uri = audioRecorder.uri ?? audioState.url;\n        if (uri) {\n          await commitEvidence({\n            type: 'audio',\n            uri,\n            durationMs: audioState.durationMillis,\n          });\n          setScreen('preview');\n        }\n        return;\n      }\n\n      const permission = await AudioModule.requestRecordingPermissionsAsync();\n      if (!permission.granted) {\n        Alert.alert(\n          'Microphone access needed',\n          'Allow microphone access to record audio evidence.',\n        );\n        return;\n      }\n\n      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });\n      await audioRecorder.prepareToRecordAsync();\n      audioRecorder.record();\n    } catch (error) {\n      Alert.alert(\n        'Audio error',\n        error instanceof Error ? error.message : 'Could not record audio.',\n      );\n    }\n  };""",
+                  """  const stopAudioRecording = async (durationOverride?: number) => {\n    if (audioStopInProgress.current) return;\n    audioStopInProgress.current = true;\n\n    if (audioAutoStopTimer.current) {\n      clearTimeout(audioAutoStopTimer.current);\n      audioAutoStopTimer.current = null;\n    }\n\n    try {\n      await audioRecorder.stop();\n      await setAudioModeAsync({\n        allowsRecording: false,\n        playsInSilentMode: true,\n        shouldRouteThroughEarpiece: false,\n      });\n\n      const uri = audioRecorder.uri ?? audioState.url;\n      if (uri) {\n        await commitEvidence({\n          type: 'audio',\n          uri,\n          durationMs: durationOverride ?? audioState.durationMillis,\n        });\n        setScreen('preview');\n      }\n    } finally {\n      audioStopInProgress.current = false;\n    }\n  };\n\n  const toggleAudio = async () => {\n    try {\n      if (audioState.isRecording) {\n        await stopAudioRecording();\n        return;\n      }\n\n      const permission = await AudioModule.requestRecordingPermissionsAsync();\n      if (!permission.granted) {\n        Alert.alert(\n          'Microphone access needed',\n          'Allow microphone access to record audio evidence.',\n        );\n        return;\n      }\n\n      await setAudioModeAsync({\n        allowsRecording: true,\n        playsInSilentMode: true,\n        shouldRouteThroughEarpiece: false,\n      });\n      await audioRecorder.prepareToRecordAsync();\n      audioStopInProgress.current = false;\n      audioRecorder.record();\n      audioAutoStopTimer.current = setTimeout(() => {\n        void stopAudioRecording(AUDIO_MAX_DURATION_MS).catch(error => {\n          Alert.alert(\n            'Audio error',\n            error instanceof Error ? error.message : 'Could not finish audio recording.',\n          );\n        });\n      }, AUDIO_MAX_DURATION_MS);\n    } catch (error) {\n      Alert.alert(\n        'Audio error',\n        error instanceof Error ? error.message : 'Could not record audio.',\n      );\n    }\n  };""",
+              ),
+              (
+                  "<AppText style={styles.body}>Stay nearby and capture the sound clearly.</AppText>",
+                  "<AppText style={styles.body}>Stay nearby and capture the sound clearly. Recording stops automatically at 10 seconds.</AppText>",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one match, found {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Commit audio fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NativeApp.tsx
+          git diff --cached --check
+          git commit -m "fix: cap audio evidence and restore speaker playback"
+          git push origin HEAD:feat/real-evidence-flow

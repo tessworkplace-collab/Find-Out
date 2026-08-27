@@ -1,0 +1,40 @@
+name: Apply mission progression once
+
+on:
+  push:
+    branches:
+      - codex/mission-difficulty
+    paths:
+      - .github/workflows/apply-mission-progression-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mission-difficulty
+          fetch-depth: 0
+      - name: Apply core rotation
+        run: python .github/scripts/upgrade_missions_core.py
+      - name: Apply mission UI
+        run: python .github/scripts/upgrade_missions_ui.py
+      - name: Apply trophy profile UI
+        run: python .github/scripts/upgrade_trophies_profile.py
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck app
+        run: npm run typecheck
+      - name: Verify diff
+        run: git diff --check
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NativeApp.tsx
+          git commit -m "feat: add mission rotation trophies and titles"
+          git push origin HEAD:codex/mission-difficulty

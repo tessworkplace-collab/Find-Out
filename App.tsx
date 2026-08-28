@@ -162,6 +162,43 @@ function Stepper({ stage }: { stage: keyof typeof stageIndex }) {
   );
 }
 
+function SavedEvidenceCard({
+  title,
+  category,
+  note,
+  icon = 'image-outline',
+  onPress,
+}: {
+  title: string;
+  category: string;
+  note: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.savedEvidenceCard,
+        pressed && { opacity: 0.82 },
+      ]}
+    >
+      <View style={styles.savedEvidenceVisual}>
+        <View style={styles.savedEvidenceIcon}>
+          <Ionicons name={icon} size={18} color={colors.blue} />
+        </View>
+      </View>
+      <AppText numberOfLines={2} style={styles.savedEvidenceTitle}>
+        {title}
+      </AppText>
+      <AppText style={styles.savedEvidenceMeta}>{category} · TODAY</AppText>
+      <AppText numberOfLines={3} style={styles.savedEvidenceNote}>
+        {note}
+      </AppText>
+    </Pressable>
+  );
+}
+
 function BottomNav({
   active,
   go,
@@ -852,20 +889,25 @@ function MyDiscoveries({ go }: { go: (s: Screen) => void }) {
           <Button label="Continue mission" onPress={() => go('investigate')} />
         </View>
 
-        <AppText style={styles.label}>Completed discoveries</AppText>
-        <Pressable
-          onPress={() => go('evidence-detail')}
-          style={styles.evidenceCard}
-        >
-          <View style={{ flex: 1 }}>
-            <AppText style={styles.eyebrowBlue}>TODAY</AppText>
-            <AppText style={styles.h3}>The place has changed</AppText>
-            <AppText style={styles.smallMuted}>
-              A different shop now occupies the address.
-            </AppText>
-          </View>
-          <Image source={brandMark} style={styles.thumb} />
-        </Pressable>
+        <View style={styles.sectionHeading}>
+          <AppText style={styles.h3}>Evidence Cards</AppText>
+          <AppText style={styles.smallMuted}>Your saved discoveries</AppText>
+        </View>
+
+        <View style={styles.evidenceGrid}>
+          <SavedEvidenceCard
+            title="The place has changed"
+            category="CITY TRACE"
+            note="A different shop now occupies the address."
+            onPress={() => go('evidence-detail')}
+          />
+          <SavedEvidenceCard
+            title={yourDiscovery.title}
+            category="CITY SOUND"
+            note={yourDiscovery.note}
+            icon="volume-medium-outline"
+          />
+        </View>
       </ScrollView>
     </Frame>
   );
@@ -1227,34 +1269,90 @@ const styles = StyleSheet.create({
   outlineButtonText: { ...typography.button, color: colors.blue },
 
   stepper: {
-    height: 56,
+    height: 52,
     flexDirection: 'row',
-    gap: 8,
+    gap: 4,
     alignItems: 'center',
   },
   stepItem: {
-    width: 80,
-    height: 48,
+    flex: 1,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 5,
   },
   stepCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepActive: { backgroundColor: colors.blue },
   stepDone: { backgroundColor: colors.limeSubtle },
-  stepNum: { ...typography.tiny, color: colors.muted },
+  stepNum: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 9,
+    lineHeight: 12,
+    color: colors.muted,
+  },
   stepLabel: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 14,
     color: colors.muted,
+  },
+
+  sectionHeading: { gap: 2 },
+  evidenceGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  savedEvidenceCard: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 238,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.white,
+    padding: 12,
+    gap: 6,
+  },
+  savedEvidenceVisual: {
+    height: 90,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  savedEvidenceIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedEvidenceTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.ink,
+  },
+  savedEvidenceMeta: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 8,
+    lineHeight: 12,
+    color: colors.blue,
+  },
+  savedEvidenceNote: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+    lineHeight: 15,
+    color: colors.text,
   },
 
   bottomNav: {

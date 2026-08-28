@@ -65,6 +65,7 @@ import {
   TrophyId,
   unlockEligibleTrophies,
 } from './src/progressionStorage';
+import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
 
 type Screen =
@@ -94,6 +95,7 @@ type Evidence = {
 const DEFAULT_OBSERVATION = '';
 const AUDIO_MAX_DURATION_MS = 10_000;
 const MISSION_OFFER_COUNT = 6;
+const brandMark = { uri: BRAND_MARK_URI };
 const captureChoices = [
   ['photo', 'camera-outline', 'Photo'],
   ['video', 'videocam-outline', 'Video'],
@@ -111,6 +113,22 @@ function createMissionOffers(excludeMissionId?: string) {
 
 function missionNumberFor(missionId: string) {
   return missions.find(mission => mission.id === missionId)?.number ?? '--';
+}
+
+function trophyProgressFor(id: TrophyId, discoveries: CompletedDiscovery[]) {
+  if (id === 'sharp-observer') {
+    return { current: Math.min(discoveries.length, 3), target: 3 };
+  }
+  if (id === 'evidence-keeper') {
+    const evidenceTypes = new Set(discoveries.map(item => item.evidenceType));
+    return { current: Math.min(evidenceTypes.size, 3), target: 3 };
+  }
+  if (id === 'pattern-finder') {
+    const missionIds = new Set(discoveries.map(item => item.missionId));
+    return { current: Math.min(missionIds.size, 4), target: 4 };
+  }
+  const completedAfterHours = discoveries.some(item => item.missionId === 'after-hours');
+  return { current: completedAfterHours ? 1 : 0, target: 1 };
 }
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
@@ -165,25 +183,34 @@ function TopBar({
   title,
   onBack,
   onExit,
+  closeLeading = false,
 }: {
   title: string;
   onBack?: () => void;
   onExit?: () => void;
+  closeLeading?: boolean;
 }) {
+  const leadingAction = onBack ?? (closeLeading ? onExit : undefined);
+  const trailingAction = closeLeading ? undefined : onExit;
+
   return (
     <View style={styles.topBar}>
-      <Pressable style={styles.hit} onPress={onBack} disabled={!onBack}>
-        {onBack ? <Ionicons name="chevron-back" size={24} color={colors.ink} /> : null}
+      <Pressable style={styles.hit} onPress={leadingAction} disabled={!leadingAction}>
+        {onBack ? (
+          <Ionicons name="chevron-back" size={24} color={colors.ink} />
+        ) : closeLeading && onExit ? (
+          <Ionicons name="close" size={24} color={colors.ink} />
+        ) : null}
       </Pressable>
       <AppText style={styles.topTitle}>{title}</AppText>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Exit mission to Home"
         style={styles.hit}
-        onPress={onExit}
-        disabled={!onExit}
+        onPress={trailingAction}
+        disabled={!trailingAction}
       >
-        {onExit ? <Ionicons name="close" size={24} color={colors.ink} /> : null}
+        {trailingAction ? <Ionicons name="close" size={24} color={colors.ink} /> : null}
       </Pressable>
     </View>
   );
@@ -1136,47 +1163,49 @@ export default function NativeApp() {
   if (screen === 'complete') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Mission complete" onExit={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={3} maxStep={highestStep} onStepPress={goToStep} />
-          <View style={styles.completeWrap}>
-            <View style={styles.successCircle}>
-              <MaterialIcons name="check" size={46} color={colors.ink} />
-            </View>
-            <AppText style={styles.h1}>Discovery submitted</AppText>
-            <AppText style={styles.body}>
+        <TopBar
+          title="Mission complete"
+          onExit={() => setScreen('discover')}
+          closeLeading
+        />
+        <ScrollView contentContainerStyle={[styles.content, styles.completeContent]}>
+          <View style={styles.successCircle}>
+            <MaterialIcons name="check" size={48} color={colors.ink} />
+          </View>
+          <View style={styles.completeTitleBlock}>
+            <AppText style={[styles.h1, styles.completeCentered]}>Discovery submitted</AppText>
+            <AppText style={[styles.body, styles.completeBody]}>
               Your evidence has been saved and sent to the prototype review state.
             </AppText>
-            <View style={styles.reviewStatusCard}>
-              <Ionicons name="time-outline" size={22} color={colors.blue} />
-              <View style={{ flex: 1, gap: 3 }}>
-                <AppText style={styles.label}>PENDING REVIEW</AppText>
-                <AppText style={styles.smallMuted}>Approval is simulated in this prototype from the field note detail.</AppText>
-              </View>
-            </View>
-            {newlyUnlockedTrophyIds.length > 0 ? (
-              <View style={styles.trophyUnlockWrap}>
-                <AppText style={styles.eyebrow}>TROPHY UNLOCKED</AppText>
-                {newlyUnlockedTrophyIds.map(id => {
-                  const trophy = trophyById(id);
-                  return trophy ? (
-                    <View key={id} style={styles.trophyUnlockCard}>
-                      <Ionicons name="trophy-outline" size={30} color={colors.blue} />
-                      <View style={{ flex: 1, gap: 3 }}>
-                        <AppText style={styles.h3}>{trophy.title}</AppText>
-                        <AppText style={styles.smallMuted}>{trophy.description}</AppText>
-                      </View>
-                    </View>
-                  ) : null;
-                })}
-              </View>
-            ) : null}
-            {evidence ? (
-              <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
-            ) : null}
-            <PrimaryButton outline label="View My Discoveries" onPress={openMyDiscoveries} />
-            <PrimaryButton label="Explore another mission" onPress={resetMission} />
           </View>
+          <View style={styles.completeReviewCard}>
+            <AppText style={styles.label}>PENDING REVIEW</AppText>
+            <AppText style={styles.smallMuted}>Approval is simulated in this prototype.</AppText>
+          </View>
+          {newlyUnlockedTrophyIds.length > 0 ? (
+            <View style={styles.trophyUnlockWrap}>
+              <AppText style={styles.trophyUnlockEyebrow}>TROPHY UNLOCKED</AppText>
+              {newlyUnlockedTrophyIds.map(id => {
+                const trophy = trophyById(id);
+                return trophy ? (
+                  <View key={id} style={[styles.trophyCardNative, styles.trophyCardUnlockedNative]}>
+                    <View style={[styles.trophyIconNative, styles.trophyIconUnlockedNative]}>
+                      <Ionicons name="trophy-outline" size={32} color={colors.blue} />
+                    </View>
+                    <View style={styles.trophyCardCopy}>
+                      <AppText style={styles.trophyCardTitle}>{trophy.title}</AppText>
+                      <AppText style={styles.trophyCardDescription}>{trophy.description}</AppText>
+                    </View>
+                    <View style={[styles.trophyStatusPill, styles.trophyStatusUnlocked]}>
+                      <AppText style={styles.trophyStatusUnlockedText}>Unlocked</AppText>
+                    </View>
+                  </View>
+                ) : null;
+              })}
+            </View>
+          ) : null}
+          <PrimaryButton label="See other discoveries" onPress={openMyDiscoveries} />
+          <PrimaryButton outline label="Explore another mission" onPress={resetMission} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -1306,47 +1335,107 @@ export default function NativeApp() {
 
   if (screen === 'trophies') {
     const unlockedMap = new Map(progression.unlockedTrophies.map(item => [item.id, item]));
+    const inProgressCount = trophyDefinitions.filter(trophy => {
+      if (unlockedMap.has(trophy.id) || trophy.hidden) return false;
+      return trophyProgressFor(trophy.id, discoveries).current > 0;
+    }).length;
+    const hiddenCount = trophyDefinitions.filter(
+      trophy => trophy.hidden && !unlockedMap.has(trophy.id),
+    ).length;
+
     return (
       <SafeAreaView style={styles.safe}>
         <TopBar title="Trophies & titles" onBack={() => setScreen('profile')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <AppText style={styles.eyebrow}>ACHIEVEMENT FIELD LOG</AppText>
-          <AppText style={styles.h1}>Trophies</AppText>
-          <AppText style={styles.body}>
-            {progression.unlockedTrophies.length} of {trophyDefinitions.length} unlocked. Trophies support completion; exploration stays central.
-          </AppText>
-          {progression.unlockedTrophies.length === 0 ? (
-            <View style={styles.emptyJournalCard}>
-              <Ionicons name="trophy-outline" size={30} color={colors.blue} />
-              <AppText style={styles.h3}>No trophies unlocked yet</AppText>
-              <AppText style={styles.body}>Complete missions and document what you find.</AppText>
+        <ScrollView contentContainerStyle={[styles.content, styles.trophiesContent]}>
+          <View style={styles.trophiesIntro}>
+            <View style={styles.trophiesIntroCopy}>
+              <AppText style={styles.eyebrow}>ACHIEVEMENT FIELD LOG</AppText>
+              <AppText style={styles.trophiesSummary}>
+                {progression.unlockedTrophies.length} unlocked · {inProgressCount} in progress · {hiddenCount} hidden
+              </AppText>
             </View>
-          ) : null}
+            <Image source={brandMark} style={styles.trophiesBrandMark} />
+          </View>
+
           {trophyDefinitions.map(trophy => {
             const unlocked = unlockedMap.get(trophy.id);
             const hiddenLocked = trophy.hidden && !unlocked;
             const equipped = progression.equippedTitleId === trophy.id;
+            const progress = trophyProgressFor(trophy.id, discoveries);
+            const inProgress = !unlocked && !hiddenLocked && progress.current > 0;
+            const statusText = unlocked
+              ? equipped
+                ? 'Equipped'
+                : 'Unlocked'
+              : inProgress
+                ? `${progress.current} / ${progress.target}`
+                : 'Locked';
+
             return (
-              <View key={trophy.id} style={[styles.trophyCardNative, !unlocked && styles.trophyCardLockedNative]}>
-                <View style={styles.trophyIconNative}>
-                  <Ionicons name={hiddenLocked ? 'help-outline' : 'trophy-outline'} size={30} color={unlocked ? colors.blue : colors.muted} />
+              <View
+                key={trophy.id}
+                style={[
+                  styles.trophyCardNative,
+                  unlocked && styles.trophyCardUnlockedNative,
+                  inProgress && styles.trophyCardProgressNative,
+                  hiddenLocked && styles.trophyCardLockedNative,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.trophyIconNative,
+                    unlocked && styles.trophyIconUnlockedNative,
+                    inProgress && styles.trophyIconProgressNative,
+                    hiddenLocked && styles.trophyIconLockedNative,
+                  ]}
+                >
+                  <Ionicons
+                    name="trophy-outline"
+                    size={32}
+                    color={unlocked || inProgress ? colors.blue : colors.muted}
+                  />
                 </View>
-                <View style={{ flex: 1, gap: 5 }}>
-                  <AppText style={styles.h3}>{hiddenLocked ? 'Hidden trophy' : trophy.title}</AppText>
-                  <AppText style={styles.smallMuted}>
+                <View style={styles.trophyCardCopy}>
+                  <AppText
+                    style={[
+                      styles.trophyCardTitle,
+                      hiddenLocked && styles.trophyCardTitleLocked,
+                    ]}
+                  >
+                    {hiddenLocked ? 'Hidden Trophy' : trophy.title}
+                  </AppText>
+                  <AppText
+                    style={[
+                      styles.trophyCardDescription,
+                      hiddenLocked && styles.trophyCardDescriptionLocked,
+                    ]}
+                  >
                     {hiddenLocked ? 'Keep exploring to reveal this trophy.' : trophy.description}
                   </AppText>
-                  {unlocked ? (
-                    <AppText style={styles.archiveLabel}>UNLOCKED {new Date(unlocked.unlockedAt).toLocaleDateString()}</AppText>
-                  ) : (
-                    <AppText style={styles.archiveLabel}>LOCKED</AppText>
-                  )}
                 </View>
                 {unlocked ? (
-                  <Pressable style={styles.equipPill} onPress={() => void toggleEquippedTitle(trophy.id)}>
-                    <AppText style={styles.badgeText}>{equipped ? 'UNEQUIP' : 'EQUIP'}</AppText>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${equipped ? 'Unequip' : 'Equip'} ${trophy.title} title`}
+                    style={[styles.trophyStatusPill, styles.trophyStatusUnlocked]}
+                    onPress={() => void toggleEquippedTitle(trophy.id)}
+                  >
+                    <AppText style={styles.trophyStatusUnlockedText}>{statusText}</AppText>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <View
+                    style={[
+                      styles.trophyStatusPill,
+                      inProgress ? styles.trophyStatusProgress : styles.trophyStatusLocked,
+                    ]}
+                  >
+                    <AppText
+                      style={inProgress ? styles.trophyStatusProgressText : styles.trophyStatusLockedText}
+                    >
+                      {statusText}
+                    </AppText>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -1956,7 +2045,20 @@ openMission: { ...typography.label, color: colors.blue, marginTop: 3 },
     gap: 7,
     paddingVertical: 2,
   },
-  completeWrap: { alignItems: 'center', gap: 18, paddingTop: 60 },
+  completeWrap: { alignItems: 'center', gap: 18, paddingTop: 18 },
+  completeContent: { alignItems: 'center', gap: 16, paddingTop: 18, paddingBottom: 24 },
+  completeTitleBlock: { width: '100%', alignItems: 'center', gap: 24 },
+  completeCentered: { textAlign: 'center' },
+  completeBody: { textAlign: 'center', maxWidth: 320 },
+  completeReviewCard: {
+    width: '100%',
+    minHeight: 68,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 3,
+  },
   archiveSummary: {
     minHeight: 92,
     borderTopWidth: 1,
@@ -2111,18 +2213,71 @@ filterRail: { gap: 8, paddingRight: 8 },
     borderRadius: radius.md,
     backgroundColor: colors.blueSubtle,
   },
-  trophyUnlockWrap: { width: '100%', gap: 10 },
-  trophyUnlockCard: {
+  trophyUnlockWrap: { width: '100%', gap: 8 },
+  trophyUnlockEyebrow: { ...typography.tiny, color: colors.blue, letterSpacing: 0.88, opacity: 0.55 },
+  trophiesContent: { gap: 12, paddingTop: 18, paddingBottom: 24 },
+  trophiesIntro: {
     width: '100%',
+    height: 88,
+    paddingBottom: 10,
+    position: 'relative',
+  },
+  trophiesIntroCopy: { gap: 4, paddingRight: 40 },
+  trophiesSummary: { ...typography.body, color: colors.text },
+  trophiesBrandMark: {
+    position: 'absolute',
+    right: 0,
+    top: 2,
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  trophyCardNative: {
+    height: 112,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    borderRadius: radius.md,
+    gap: 16,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderStrong,
-    backgroundColor: colors.limeSubtle,
+    padding: 16,
+    backgroundColor: '#FAFAFA',
   },
+  trophyCardUnlockedNative: { backgroundColor: colors.limeSubtle, borderColor: colors.limeBorder },
+  trophyCardProgressNative: { backgroundColor: colors.blueSubtle, borderColor: colors.blueBorder },
+  trophyCardLockedNative: { backgroundColor: '#FAFAFA', borderColor: colors.borderStrong },
+  trophyIconNative: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.softGrey,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  trophyIconUnlockedNative: { backgroundColor: colors.white },
+  trophyIconProgressNative: { backgroundColor: colors.white },
+  trophyIconLockedNative: { backgroundColor: colors.border },
+  trophyCardCopy: { flex: 1, gap: 4, minWidth: 0 },
+  trophyCardTitle: { fontFamily: 'Archivo_600SemiBold', fontSize: 16, lineHeight: 22, color: colors.ink },
+  trophyCardTitleLocked: { color: colors.text },
+  trophyCardDescription: { ...typography.small, color: colors.text },
+  trophyCardDescriptionLocked: { color: colors.muted },
+  trophyStatusPill: {
+    minHeight: 24,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  trophyStatusUnlocked: { backgroundColor: colors.limeBorder },
+  trophyStatusProgress: { backgroundColor: colors.blueBorder },
+  trophyStatusLocked: { backgroundColor: colors.border },
+  trophyStatusUnlockedText: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 16, color: colors.ink },
+  trophyStatusProgressText: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 16, color: colors.blue },
+  trophyStatusLockedText: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 16, color: colors.muted },
   profileAvatar: {
     width: 84,
     height: 84,
@@ -2138,34 +2293,6 @@ filterRail: { gap: 8, paddingRight: 8 },
     borderWidth: 1,
     borderColor: colors.borderStrong,
     gap: 8,
-    backgroundColor: colors.blueSubtle,
-  },
-  trophyCardNative: {
-    minHeight: 118,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    padding: 16,
-    backgroundColor: colors.white,
-  },
-  trophyCardLockedNative: { opacity: 0.7, backgroundColor: colors.softGrey },
-  trophyIconNative: {
-    width: 58,
-    height: 58,
-    borderRadius: radius.md,
-    backgroundColor: colors.blueSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  equipPill: {
-    minHeight: 36,
-    borderRadius: radius.full,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: colors.blueSubtle,
   },
   nativeNote: {

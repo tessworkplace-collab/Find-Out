@@ -160,6 +160,7 @@ function Stepper({
         const available = index <= maxStep && !disabled;
         const isActive = index === active;
         const isUnlocked = index <= maxStep;
+        const isCompleted = index < active;
 
         return (
           <Pressable
@@ -178,6 +179,7 @@ function Stepper({
               style={[
                 styles.stepDot,
                 isUnlocked && !isActive && styles.stepDotUnlocked,
+                isCompleted && styles.stepDotCompleted,
                 isActive && styles.stepDotActive,
               ]}
             >
@@ -186,6 +188,7 @@ function Stepper({
                   styles.stepNumber,
                   isActive && { color: colors.white },
                   isUnlocked && !isActive && { color: colors.text },
+                  isCompleted && { color: colors.ink },
                 ]}
               >
                 {index + 1}
@@ -195,6 +198,7 @@ function Stepper({
               style={[
                 styles.stepLabel,
                 isUnlocked && !isActive && styles.stepLabelUnlocked,
+                isCompleted && { color: colors.ink },
                 isActive && { color: colors.blue },
               ]}
             >
@@ -1312,6 +1316,10 @@ const styles = StyleSheet.create({
   stepDotUnlocked: {
     backgroundColor: colors.white,
     borderColor: colors.borderStrong,
+  },
+  stepDotCompleted: {
+    backgroundColor: colors.limeSubtle,
+    borderColor: colors.limeSubtle,
   },
   stepDotActive: { backgroundColor: colors.blue, borderColor: colors.blue },
   stepNumber: { fontFamily: 'Inter_500Medium', fontSize: 12, color: colors.muted },

@@ -23,6 +23,9 @@ jobs:
       - name: Apply Figma graphic sync
         run: python .github/scripts/sync_figma_graphics.py
 
+      - name: Preserve profile styles
+        run: python .github/scripts/fix_figma_profile_styles.py
+
       - name: Install dependencies
         run: npm install
 
@@ -41,6 +44,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add NativeApp.tsx src/theme.ts
           git rm .github/scripts/sync_figma_graphics.py
+          git rm .github/scripts/fix_figma_profile_styles.py
           git rm .github/workflows/apply-mission-progression-once.yml
           git commit -m "style: sync native UI with Figma graphics"
           git push origin HEAD:codex/mission-difficulty

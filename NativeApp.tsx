@@ -54,6 +54,7 @@ import {
   loadCompletedDiscoveries,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
+import MissionCard from './src/components/MissionCard';
 
 type Screen =
   | 'discover'
@@ -985,6 +986,13 @@ export default function NativeApp() {
             <AppText style={styles.body}>
               Your evidence has been captured and attached to this mission entry.
             </AppText>
+            <MissionCard
+              state="completed"
+              title={activeMission.title}
+              description="Mission complete. Your discovery is saved."
+              progressLabel="1 of 1 discovery"
+              progress={1}
+            />
             {evidence ? (
               <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
             ) : null}
@@ -1232,14 +1240,35 @@ export default function NativeApp() {
       <ScrollView contentContainerStyle={styles.content}>
         <AppText style={styles.h1}>Something familiar. Something unnoticed.</AppText>
         <AppText style={styles.body}>Open one mission and investigate it your way.</AppText>
-        <Pressable style={styles.missionCard} onPress={() => setScreen('mission')}>
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.category}</AppText>
-          </View>
-          <AppText style={styles.h3}>{activeMission.title}</AppText>
-          <AppText style={styles.body}>{activeMission.hook}</AppText>
-          <AppText style={styles.openMission}>OPEN MISSION →</AppText>
-        </Pressable>
+        <MissionCard
+          state={submitted ? 'completed' : highestStep > 0 ? 'active' : 'default'}
+          category={activeMission.category}
+          title={activeMission.title}
+          description={
+            submitted
+              ? 'Mission complete. Your discovery is saved.'
+              : highestStep > 0
+                ? 'Keep investigating—your discovery is still open.'
+                : activeMission.hook
+          }
+          progressLabel={
+            submitted
+              ? '1 of 1 discovery'
+              : highestStep > 0
+                ? `${Math.min(highestStep, 3)} of 4 steps`
+                : '0 of 1 discovery'
+          }
+          progress={submitted ? 1 : highestStep > 0 ? Math.min(highestStep / 4, 0.75) : 0.08}
+          onPress={() => {
+            if (submitted) {
+              openMyDiscoveries();
+            } else if (highestStep > 0) {
+              goToStep(Math.min(highestStep, 2));
+            } else {
+              setScreen('mission');
+            }
+          }}
+        />
         <Pressable style={styles.linkedEvidence} onPress={openMyDiscoveries}>
           <Ionicons name="bookmark-outline" size={26} color={colors.blue} />
           <View style={{ flex: 1 }}>

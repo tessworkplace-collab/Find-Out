@@ -142,7 +142,13 @@ function Stepper({ stage }: { stage: keyof typeof stageIndex }) {
                 done && styles.stepDone,
               ]}
             >
-              <AppText style={[styles.stepNum, active && { color: colors.white }]}>
+              <AppText
+                style={[
+                  styles.stepNum,
+                  active && { color: colors.white },
+                  done && { color: colors.text },
+                ]}
+              >
                 {i + 1}
               </AppText>
             </View>
@@ -1290,7 +1296,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepActive: { backgroundColor: colors.blue },
-  stepDone: { backgroundColor: colors.limeSubtle },
+  stepDone: { backgroundColor: colors.borderStrong },
   stepNum: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 9,

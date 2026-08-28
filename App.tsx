@@ -146,7 +146,7 @@ function Stepper({ stage }: { stage: keyof typeof stageIndex }) {
                 style={[
                   styles.stepNum,
                   active && { color: colors.white },
-                  done && { color: colors.text },
+                  done && { color: colors.ink },
                 ]}
               >
                 {i + 1}
@@ -1275,38 +1275,44 @@ const styles = StyleSheet.create({
   outlineButtonText: { ...typography.button, color: colors.blue },
 
   stepper: {
-    height: 52,
+    width: 345,
+    height: 56,
     flexDirection: 'row',
-    gap: 4,
+    gap: 8,
     alignItems: 'center',
+    paddingVertical: 4,
+    backgroundColor: colors.white,
   },
   stepItem: {
-    flex: 1,
-    height: 44,
+    width: 80,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 4,
+    borderRadius: radius.full,
+    overflow: 'hidden',
   },
   stepCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   stepActive: { backgroundColor: colors.blue },
-  stepDone: { backgroundColor: colors.borderStrong },
+  stepDone: { backgroundColor: colors.limeSubtle },
   stepNum: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 9,
-    lineHeight: 12,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    lineHeight: 16,
     color: colors.muted,
   },
   stepLabel: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.muted,
   },
 

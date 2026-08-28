@@ -25,6 +25,7 @@ import {
 import { activeMission, nextMission, otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
+import MissionCard from './src/components/MissionCard';
 
 type Screen =
   | 'onboarding'
@@ -290,29 +291,6 @@ function MissionNumber({ number }: { number: string }) {
   );
 }
 
-function MissionCard({ locked, onPress }: { locked?: boolean; onPress?: () => void }) {
-  const d = locked ? nextMission : activeMission;
-
-  return (
-    <Pressable
-      disabled={locked}
-      onPress={onPress}
-      style={[styles.missionCard, locked && { opacity: 0.72 }]}
-    >
-      <View style={styles.pill}>
-        <AppText style={styles.pillText}>{d.category}</AppText>
-      </View>
-      <AppText style={styles.h3}>{d.title}</AppText>
-      <AppText style={styles.smallMuted}>{d.hook}</AppText>
-      <AppText style={styles.meta}>{locked ? nextMission.locked : 'OPEN MISSION →'}</AppText>
-      <View style={styles.track}>
-        <View style={styles.fill} />
-      </View>
-      <MissionNumber number={d.number} />
-    </Pressable>
-  );
-}
-
 function Onboarding({ go }: { go: (s: Screen) => void }) {
   return (
     <View style={styles.onboarding}>
@@ -358,8 +336,22 @@ function Discover({ go }: { go: (s: Screen) => void }) {
           <View style={styles.limeDot} />
           <AppText style={styles.label}>All</AppText>
         </View>
-        <MissionCard onPress={() => go('mission-detail')} />
-        <MissionCard locked />
+        <MissionCard
+          category={activeMission.category}
+          title={activeMission.title}
+          description={activeMission.hook}
+          progressLabel="0 of 1 discovery"
+          progress={0.08}
+          onPress={() => go('mission-detail')}
+        />
+        <MissionCard
+          category="CITY TRACE"
+          title={nextMission.title}
+          description={nextMission.hook}
+          progressLabel={nextMission.locked}
+          progress={0}
+          disabled
+        />
       </ScrollView>
     </Frame>
   );
@@ -763,6 +755,14 @@ function MissionComplete({ go }: { go: (s: Screen) => void }) {
           </AppText>
         </View>
 
+        <MissionCard
+          state="completed"
+          title={activeMission.title}
+          description="Mission complete. Your discovery is saved."
+          progressLabel="1 of 1 discovery"
+          progress={1}
+        />
+
         <View style={styles.trophyCard}>
           <Ionicons name="trophy-outline" size={32} color={colors.blue} />
           <View style={{ flex: 1 }}>
@@ -888,12 +888,14 @@ function MyDiscoveries({ go }: { go: (s: Screen) => void }) {
       <ScrollView contentContainerStyle={styles.content}>
         <TitleBlock title="My Discoveries" body="Your missions and discoveries" />
 
-        <View style={styles.activeCard}>
-          <AppText style={styles.eyebrow}>ACTIVE MISSION</AppText>
-          <AppText style={styles.h3}>{activeMission.title}</AppText>
-          <AppText style={styles.smallMuted}>Investigate · In progress</AppText>
-          <Button label="Continue mission" onPress={() => go('investigate')} />
-        </View>
+        <MissionCard
+          state="active"
+          title={activeMission.title}
+          description="Keep investigating—your discovery is still open."
+          progressLabel="1 of 4 steps"
+          progress={0.25}
+          onPress={() => go('investigate')}
+        />
 
         <View style={styles.sectionHeading}>
           <AppText style={styles.h3}>Evidence Cards</AppText>

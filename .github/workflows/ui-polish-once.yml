@@ -1,0 +1,381 @@
+name: UI hierarchy polish once
+
+on:
+  push:
+    branches:
+      - codex/mission-difficulty
+    paths:
+      - .github/workflows/ui-polish-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mission-difficulty
+          fetch-depth: 0
+
+      - name: Apply visual hierarchy polish
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_one(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          # Shared typography: one restrained hierarchy across web and native.
+          theme = Path('src/theme.ts')
+          s = theme.read_text()
+          old = """export const typography = {
+            h1: { fontFamily: 'Archivo_600SemiBold', fontSize: 32, lineHeight: 38, letterSpacing: -0.32 },
+            h3: { fontFamily: 'Archivo_600SemiBold', fontSize: 20, lineHeight: 26 },
+            body: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
+            bodyMedium: { fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 22 },
+            label: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18 },
+            small: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 },
+            tiny: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 16 },
+            button: { fontFamily: 'Inter_700Bold', fontSize: 14, lineHeight: 18 },
+          };"""
+          new = """export const typography = {
+            h1: { fontFamily: 'Archivo_600SemiBold', fontSize: 30, lineHeight: 36, letterSpacing: -0.24 },
+            h2: { fontFamily: 'Archivo_600SemiBold', fontSize: 22, lineHeight: 28, letterSpacing: -0.08 },
+            h3: { fontFamily: 'Archivo_600SemiBold', fontSize: 18, lineHeight: 24 },
+            body: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
+            bodyMedium: { fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 22 },
+            label: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18 },
+            small: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 },
+            tiny: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 14 },
+            button: { fontFamily: 'Inter_700Bold', fontSize: 14, lineHeight: 18 },
+          };"""
+          s = replace_one(s, old, new, 'shared typography')
+          theme.write_text(s)
+
+          # Native: make lime a restrained mission-identity accent rather than a block.
+          native = Path('NativeApp.tsx')
+          s = native.read_text()
+          s = replace_one(
+              s,
+              """function MissionNumberMark({ number }: { number: string }) {
+            return (
+              <View style={styles.missionNumberMark}>
+                <AppText style={styles.missionNumberWord}>MISSION</AppText>
+                <View style={styles.missionNumberBlock}>
+                  <AppText style={styles.missionNumberDigits}>{number}</AppText>
+                </View>
+              </View>
+            );
+          }""",
+              """function MissionNumberMark({ number }: { number: string }) {
+            return (
+              <View style={styles.missionNumberMark}>
+                <View style={styles.missionNumberRule} />
+                <View style={styles.missionNumberCopy}>
+                  <AppText style={styles.missionNumberWord}>MISSION</AppText>
+                  <AppText style={styles.missionNumberDigits}>{number}</AppText>
+                </View>
+              </View>
+            );
+          }""",
+              'native mission mark component',
+          )
+          s = replace_one(
+              s,
+              """            <View style={{ gap: 5 }}>
+              <MissionNumberMark number={featuredMission.number} />
+              <AppText style={styles.archiveLabel}>ROTATING PICK</AppText>
+            </View>""",
+              """            <MissionNumberMark number={featuredMission.number} />""",
+              'native featured meta cleanup',
+          )
+          s = replace_one(s, "content: { padding: 24, gap: 18, paddingBottom: 48 },", "content: { padding: 24, gap: 16, paddingBottom: 48 },", 'native content rhythm')
+          s = replace_one(s, "topTitle: { flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 14 },", "topTitle: { flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 14, lineHeight: 18, letterSpacing: 0.1 },", 'native top title')
+          s = replace_one(s, "h2: { fontFamily: 'Archivo_600SemiBold', fontSize: 26, lineHeight: 32 },", "h2: { ...typography.h2 },", 'native h2 token')
+          s = replace_one(
+              s,
+              """  badge: {
+            alignSelf: 'flex-start',
+            backgroundColor: colors.blueSubtle,
+            borderRadius: radius.full,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+          },
+          badgeText: { ...typography.tiny, color: colors.blue },""",
+              """  badge: {
+            alignSelf: 'flex-start',
+            backgroundColor: colors.blueSubtle,
+            borderRadius: radius.full,
+            paddingHorizontal: 11,
+            paddingVertical: 6,
+          },
+          badgeText: { ...typography.tiny, color: colors.blue, letterSpacing: 0.55 },""",
+              'native difficulty badge',
+          )
+          s = replace_one(
+              s,
+              """  missionCard: {
+            borderWidth: 1,
+            borderColor: colors.borderStrong,
+            borderRadius: radius.lg,
+            padding: 20,
+            gap: 14,
+          },""",
+              """  missionCard: {
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: radius.lg,
+            padding: 18,
+            gap: 11,
+            backgroundColor: colors.white,
+          },""",
+              'native mission card',
+          )
+          s = replace_one(s, "openMission: { ...typography.label, color: colors.blue, marginTop: 6 },", "openMission: { ...typography.label, color: colors.blue, marginTop: 3 },", 'native mission CTA rhythm')
+          s = replace_one(s, "questionCard: {\n    borderWidth: 1,\n    borderColor: colors.borderStrong,", "questionCard: {\n    borderWidth: 1,\n    borderColor: colors.border,", 'native question card border')
+          s = replace_one(s, "featuredObservation: { ...typography.body, color: colors.ink, fontSize: 17, lineHeight: 25 },", "featuredObservation: { ...typography.bodyMedium, color: colors.ink },", 'native featured observation')
+          s = replace_one(s, "discoveryNumber: { fontFamily: 'Archivo_600SemiBold', fontSize: 20, color: colors.muted },", "discoveryNumber: { ...typography.tiny, color: colors.muted, letterSpacing: 0.8 },", 'native archive mission number')
+          s = replace_one(
+              s,
+              """  todayMissionCard: {
+            borderColor: colors.lime,
+            backgroundColor: colors.limeSubtle,
+          },
+          featuredMissionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+          missionIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+          missionNumberMark: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+          missionNumberWord: {
+            ...typography.tiny,
+            color: colors.muted,
+            letterSpacing: 1.1,
+          },
+          missionNumberBlock: {
+            width: 46,
+            height: 38,
+            borderRadius: radius.sm,
+            borderTopLeftRadius: 0,
+            backgroundColor: colors.lime,
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          missionNumberDigits: {
+            fontFamily: 'Archivo_600SemiBold',
+            fontSize: 20,
+            lineHeight: 24,
+            color: colors.ink,
+            letterSpacing: 0.4,
+          },""",
+              """  todayMissionCard: {
+            borderColor: colors.borderStrong,
+            borderLeftWidth: 3,
+            borderLeftColor: colors.lime,
+            backgroundColor: colors.white,
+          },
+          featuredMissionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+          missionIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+          missionNumberMark: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+          missionNumberRule: {
+            width: 3,
+            height: 34,
+            borderRadius: radius.full,
+            backgroundColor: colors.lime,
+          },
+          missionNumberCopy: { gap: 0 },
+          missionNumberWord: {
+            ...typography.tiny,
+            color: colors.muted,
+            letterSpacing: 1.15,
+          },
+          missionNumberDigits: {
+            fontFamily: 'Archivo_600SemiBold',
+            fontSize: 22,
+            lineHeight: 24,
+            color: colors.ink,
+            letterSpacing: 0.2,
+          },""",
+              'native mission identity styles',
+          )
+          s = replace_one(s, "filterChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },", "filterChipActive: { backgroundColor: colors.blueSubtle, borderColor: colors.blue },", 'native active filter')
+          s = replace_one(s, "filterChipTextActive: { color: colors.white },", "filterChipTextActive: { color: colors.blue },", 'native active filter text')
+          s = replace_one(s, "borderColor: colors.borderStrong,\n    borderRadius: radius.md,\n    padding: 16,\n    gap: 6,\n    backgroundColor: colors.white,\n  },\n  safetyCard:", "borderColor: colors.border,\n    borderRadius: radius.md,\n    padding: 16,\n    gap: 6,\n    backgroundColor: colors.white,\n  },\n  safetyCard:", 'native requirements border')
+          native.write_text(s)
+
+          # Web prototype: same typography and restrained mission-number language.
+          web = Path('App.tsx')
+          s = web.read_text()
+          s = replace_one(
+              s,
+              """function MissionNumber({ number }: { number: string }) {
+            return (
+              <View style={styles.missionNumber}>
+                <View style={styles.cornerTop} />
+                <View style={styles.cornerLeft} />
+                <AppText style={styles.numberText}>{number}</AppText>
+                <View style={styles.numberDot} />
+              </View>
+            );
+          }""",
+              """function MissionNumber({ number }: { number: string }) {
+            return (
+              <View style={styles.missionNumber}>
+                <View style={styles.numberRule} />
+                <View>
+                  <AppText style={styles.numberLabel}>MISSION</AppText>
+                  <AppText style={styles.numberText}>{number}</AppText>
+                </View>
+              </View>
+            );
+          }""",
+              'web mission mark component',
+          )
+          s = s.replace("""      <View style={styles.track}>
+            <View style={styles.fill} />
+          </View>
+          <MissionNumber number={d.number} />""", """      <MissionNumber number={d.number} />""", 1)
+          s = replace_one(s, "topTitle: { ...typography.h3, flex: 1, textAlign: 'center' },", "topTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, lineHeight: 18, flex: 1, textAlign: 'center', letterSpacing: 0.1 },", 'web top title')
+          s = replace_one(s, "h1: { ...typography.h1 },\n  h3: { ...typography.h3 },", "h1: { ...typography.h1 },\n  h2: { ...typography.h2 },\n  h3: { ...typography.h3 },", 'web heading tokens')
+          s = replace_one(
+              s,
+              """  missionCard: {
+            height: 176,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: radius.lg,
+            borderTopLeftRadius: 0,
+            paddingHorizontal: 18,
+            paddingVertical: 16,
+            gap: 8,
+            position: 'relative',
+          },""",
+              """  missionCard: {
+            minHeight: 168,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: radius.lg,
+            paddingHorizontal: 18,
+            paddingVertical: 17,
+            gap: 9,
+            position: 'relative',
+            backgroundColor: colors.white,
+          },""",
+              'web mission card',
+          )
+          s = replace_one(
+              s,
+              """  pill: {
+            alignSelf: 'flex-start',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 999,
+            backgroundColor: colors.blueSubtle,
+          },
+          pillText: { ...typography.tiny, color: colors.blue },
+          track: {
+            height: 6,
+            borderRadius: 999,
+            backgroundColor: colors.border,
+            overflow: 'hidden',
+          },
+          fill: { width: 24, height: 6, backgroundColor: colors.blue },
+          missionNumber: {
+            position: 'absolute',
+            right: 17,
+            top: 13,
+            width: 68,
+            height: 48,
+          },
+          cornerTop: {
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: 28,
+            height: 3,
+            backgroundColor: colors.blue,
+          },
+          cornerLeft: {
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: 3,
+            height: 28,
+            backgroundColor: colors.blue,
+          },
+          numberText: {
+            position: 'absolute',
+            left: 8,
+            top: 10,
+            fontFamily: 'Archivo_600SemiBold',
+            fontSize: 24,
+            lineHeight: 30,
+            color: colors.blue,
+          },
+          numberDot: {
+            position: 'absolute',
+            right: 8,
+            top: 6,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: colors.lime,
+          },""",
+              """  pill: {
+            alignSelf: 'flex-start',
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            backgroundColor: colors.blueSubtle,
+          },
+          pillText: { ...typography.tiny, color: colors.blue, letterSpacing: 0.55 },
+          missionNumber: {
+            position: 'absolute',
+            right: 16,
+            top: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          },
+          numberRule: {
+            width: 3,
+            height: 34,
+            borderRadius: radius.full,
+            backgroundColor: colors.lime,
+          },
+          numberLabel: {
+            ...typography.tiny,
+            color: colors.muted,
+            letterSpacing: 1.1,
+          },
+          numberText: {
+            fontFamily: 'Archivo_600SemiBold',
+            fontSize: 22,
+            lineHeight: 24,
+            color: colors.ink,
+            letterSpacing: 0.2,
+          },""",
+              'web mission identity styles',
+          )
+          s = replace_one(s, "borderColor: colors.lime,\n    borderRadius: radius.full,\n    backgroundColor: colors.limeSubtle,", "borderColor: colors.blue,\n    borderRadius: radius.full,\n    backgroundColor: colors.blueSubtle,", 'web interactive filter color')
+          web.write_text(s)
+          PY
+
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Export web
+        run: npm run web:export
+      - name: Verify diff
+        run: git diff --check
+      - name: Commit polish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/theme.ts NativeApp.tsx App.tsx
+          git commit -m "style: refine mission identity and type hierarchy"
+          git push origin HEAD:codex/mission-difficulty

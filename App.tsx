@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import {
   Archivo_600SemiBold,
   useFonts as useArchivoFonts,
@@ -710,7 +710,7 @@ function MissionComplete({ go }: { go: (s: Screen) => void }) {
         <Stepper stage="Submit" />
 
         <View style={styles.success}>
-          <Ionicons name="checkmark" size={28} color={colors.ink} />
+          <MaterialIcons name="check" size={34} color={colors.ink} />
         </View>
 
         <View style={{ alignItems: 'center', gap: 8 }}>

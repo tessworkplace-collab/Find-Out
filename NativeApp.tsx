@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import {
   CameraType,
   CameraView,
@@ -1141,7 +1141,7 @@ export default function NativeApp() {
           <Stepper active={3} maxStep={highestStep} onStepPress={goToStep} />
           <View style={styles.completeWrap}>
             <View style={styles.successCircle}>
-              <Ionicons name="checkmark" size={34} color={colors.ink} />
+              <MaterialIcons name="check" size={46} color={colors.ink} />
             </View>
             <AppText style={styles.h1}>Discovery submitted</AppText>
             <AppText style={styles.body}>

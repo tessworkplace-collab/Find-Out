@@ -124,8 +124,9 @@ function AppText({ children, style, ...props }: React.ComponentProps<typeof Text
 function MissionNumberMark({ number }: { number: string }) {
   return (
     <View style={styles.missionNumberMark}>
-      <AppText style={styles.missionNumberWord}>MISSION</AppText>
-      <View style={styles.missionNumberBlock}>
+      <View style={styles.missionNumberRule} />
+      <View style={styles.missionNumberCopy}>
+        <AppText style={styles.missionNumberWord}>MISSION</AppText>
         <AppText style={styles.missionNumberDigits}>{number}</AppText>
       </View>
     </View>
@@ -1622,10 +1623,7 @@ export default function NativeApp() {
           onPress={() => openMissionForTest(featuredMission)}
         >
           <View style={styles.featuredMissionMeta}>
-            <View style={{ gap: 5 }}>
-              <MissionNumberMark number={featuredMission.number} />
-              <AppText style={styles.archiveLabel}>ROTATING PICK</AppText>
-            </View>
+            <MissionNumberMark number={featuredMission.number} />
             <View style={styles.badge}>
               <AppText style={styles.badgeText}>{featuredMission.difficulty}</AppText>
             </View>
@@ -1709,7 +1707,7 @@ export default function NativeApp() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.white },
   text: { color: colors.ink, fontFamily: 'Inter_400Regular' },
-  content: { padding: 24, gap: 18, paddingBottom: 48 },
+  content: { padding: 24, gap: 16, paddingBottom: 48 },
   topBar: {
     height: 64,
     flexDirection: 'row',
@@ -1719,9 +1717,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   hit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  topTitle: { flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 14 },
+  topTitle: { flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 14, lineHeight: 18, letterSpacing: 0.1 },
   h1: { ...typography.h1 },
-  h2: { fontFamily: 'Archivo_600SemiBold', fontSize: 26, lineHeight: 32 },
+  h2: { ...typography.h2 },
   h3: { ...typography.h3 },
   body: { ...typography.body, color: colors.text },
   label: { ...typography.label },
@@ -1769,21 +1767,22 @@ const styles = StyleSheet.create({
   stepLabel: { ...typography.tiny, color: colors.muted },
   stepLabelUnlocked: { color: colors.text },
   badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.blueSubtle,
-    borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  badgeText: { ...typography.tiny, color: colors.blue },
+  alignSelf: 'flex-start',
+  backgroundColor: colors.blueSubtle,
+  borderRadius: radius.full,
+  paddingHorizontal: 11,
+  paddingVertical: 6,
+},
+badgeText: { ...typography.tiny, color: colors.blue, letterSpacing: 0.55 },
   missionCard: {
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: radius.lg,
-    padding: 20,
-    gap: 14,
-  },
-  openMission: { ...typography.label, color: colors.blue, marginTop: 6 },
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: radius.lg,
+  padding: 18,
+  gap: 11,
+  backgroundColor: colors.white,
+},
+openMission: { ...typography.label, color: colors.blue, marginTop: 3 },
   clueCard: { backgroundColor: colors.blueSubtle, borderRadius: radius.lg, padding: 20, gap: 14 },
   questionCard: {
     borderWidth: 1,
@@ -1999,8 +1998,8 @@ const styles = StyleSheet.create({
   videoBadge: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.blueSubtle },
   featuredBody: { padding: 20, gap: 12 },
   featuredMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  discoveryNumber: { fontFamily: 'Archivo_600SemiBold', fontSize: 20, color: colors.muted },
-  featuredObservation: { ...typography.body, color: colors.ink, fontSize: 17, lineHeight: 25 },
+  discoveryNumber: { ...typography.tiny, color: colors.muted, letterSpacing: 0.8 },
+  featuredObservation: { ...typography.bodyMedium, color: colors.ink },
   featuredFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 },
   fieldNoteStamp: { borderTopWidth: 1, borderColor: colors.border, paddingTop: 12, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 7 },
   discoveryCard: {
@@ -2031,34 +2030,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   todayMissionCard: {
-    borderColor: colors.lime,
-    backgroundColor: colors.limeSubtle,
-  },
-  featuredMissionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  missionIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  missionNumberMark: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  missionNumberWord: {
-    ...typography.tiny,
-    color: colors.muted,
-    letterSpacing: 1.1,
-  },
-  missionNumberBlock: {
-    width: 46,
-    height: 38,
-    borderRadius: radius.sm,
-    borderTopLeftRadius: 0,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  missionNumberDigits: {
-    fontFamily: 'Archivo_600SemiBold',
-    fontSize: 20,
-    lineHeight: 24,
-    color: colors.ink,
-    letterSpacing: 0.4,
-  },
-  filterRail: { gap: 8, paddingRight: 8 },
+  borderColor: colors.borderStrong,
+  borderLeftWidth: 3,
+  borderLeftColor: colors.lime,
+  backgroundColor: colors.white,
+},
+featuredMissionMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+missionIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+missionNumberMark: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+missionNumberRule: {
+  width: 3,
+  height: 34,
+  borderRadius: radius.full,
+  backgroundColor: colors.lime,
+},
+missionNumberCopy: { gap: 0 },
+missionNumberWord: {
+  ...typography.tiny,
+  color: colors.muted,
+  letterSpacing: 1.15,
+},
+missionNumberDigits: {
+  fontFamily: 'Archivo_600SemiBold',
+  fontSize: 22,
+  lineHeight: 24,
+  color: colors.ink,
+  letterSpacing: 0.2,
+},
+filterRail: { gap: 8, paddingRight: 8 },
   filterChip: {
     minHeight: 38,
     paddingHorizontal: 16,
@@ -2069,9 +2068,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.white,
   },
-  filterChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  filterChipActive: { backgroundColor: colors.blueSubtle, borderColor: colors.blue },
   filterChipText: { ...typography.label, color: colors.text },
-  filterChipTextActive: { color: colors.white },
+  filterChipTextActive: { color: colors.blue },
   emptyMissionFilter: { paddingVertical: 18, borderBottomWidth: 1, borderColor: colors.border },
   reviewStatusCard: {
     flexDirection: 'row',

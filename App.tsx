@@ -29,9 +29,11 @@ import {
   ProductCollectionScreen,
   ProductCompleteScreen,
   ProductDiscoverScreen,
+  ProductDocumentScreen,
   ProductEvidencePickerScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
+  ProductProfileScreen,
 } from './src/components/FigmaProductScreens';
 
 type Screen =
@@ -582,47 +584,14 @@ function Document({
   const [loc, setLoc] = useState('');
 
   return (
-    <Frame>
-      <TopBar title="Document" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content12}>
-        <Stepper stage="Document" />
-        <AppText style={styles.eyebrowBlue}>FIELD NOTE · 03</AppText>
-        <TitleBlock
-          title="Describe what you found"
-          body="Add just enough context for someone else to understand what you found."
-        />
-
-        <View style={styles.field}>
-          <AppText style={styles.label}>Observation</AppText>
-          <TextInput value={obs} onChangeText={setObs} style={styles.input} />
-          <AppText style={styles.helper}>Saved as draft</AppText>
-        </View>
-
-        <View style={styles.field}>
-          <AppText style={styles.label}>Location</AppText>
-          <TextInput
-            value={loc}
-            onChangeText={setLoc}
-            placeholder="Where did you find it?"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
-          />
-          <AppText style={styles.helper}>Optional place name</AppText>
-        </View>
-
-        <View style={styles.info}>
-          <Ionicons name="information-circle-outline" size={20} color={colors.blue} />
-          <View>
-            <AppText style={styles.guidanceTitle}>Evidence linked</AppText>
-            <AppText style={styles.guidanceBody}>
-              This entry stays connected to your mission.
-            </AppText>
-          </View>
-        </View>
-
-        <Button label="Submit discovery" onPress={() => go('mission-complete')} />
-      </ScrollView>
-    </Frame>
+    <ProductDocumentScreen
+      observation={obs}
+      location={loc}
+      onChangeObservation={setObs}
+      onChangeLocation={setLoc}
+      onBack={back}
+      onSubmit={() => go('mission-complete')}
+    />
   );
 }
 
@@ -739,50 +708,11 @@ function MyDiscoveries({ go }: { go: (s: Screen) => void }) {
 
 function Profile({ go }: { go: (s: Screen) => void }) {
   return (
-    <Frame nav={<BottomNav active="profile" go={go} />}>
-      <TopBar title="Profile" type="root" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.avatar}>
-          <Ionicons name="person-outline" size={30} color={colors.blue} />
-        </View>
-
-        <View style={{ alignItems: 'center', gap: 6 }}>
-          <AppText style={styles.h3}>Tess</AppText>
-          <AppText style={styles.smallMuted}>
-            12 discoveries · 3 missions completed
-          </AppText>
-        </View>
-
-        <View style={styles.sectionRow}>
-          <AppText style={styles.h3}>Trophies</AppText>
-          <Pressable onPress={() => go('trophies')}>
-            <AppText style={{ ...styles.label, color: colors.blue }}>
-              2 / 6 · View all
-            </AppText>
-          </Pressable>
-        </View>
-
-        <View style={styles.trophyCard}>
-          <Ionicons name="trophy-outline" size={32} color={colors.blue} />
-          <View>
-            <AppText style={styles.h3}>Sharp Observer</AppText>
-            <AppText style={styles.smallMuted}>
-              Three discoveries documented.
-            </AppText>
-          </View>
-        </View>
-
-        <AppText style={styles.h3}>Preferences</AppText>
-        <View style={styles.pref}>
-          <AppText>Mission reminders</AppText>
-          <Ionicons name="toggle" size={34} color={colors.blue} />
-        </View>
-        <View style={styles.pref}>
-          <AppText>Location access</AppText>
-          <Ionicons name="toggle-outline" size={34} color={colors.muted} />
-        </View>
-      </ScrollView>
-    </Frame>
+    <ProductProfileScreen
+      onDiscover={() => go('discover')}
+      onMission={() => go('my-discoveries')}
+      onTrophies={() => go('trophies')}
+    />
   );
 }
 

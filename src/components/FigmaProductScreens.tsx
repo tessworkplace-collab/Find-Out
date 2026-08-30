@@ -221,7 +221,6 @@ function MissionNumber({ number }: { number: string }) {
     <View style={styles.missionNumber}>
       <View style={styles.missionRail} />
       <Text style={styles.missionNumberLabel}>MISSION</Text>
-      <View style={styles.clueDot} />
       <Text style={styles.missionNumberValue}>{number}</Text>
     </View>
   );
@@ -1287,15 +1286,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     letterSpacing: 0.8,
-  },
-  clueDot: {
-    position: 'absolute',
-    left: 52,
-    top: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.lime,
   },
   missionNumberValue: {
     position: 'absolute',

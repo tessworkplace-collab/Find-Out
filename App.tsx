@@ -25,7 +25,14 @@ import {
 import { activeMission, nextMission, otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
-import MissionCard from './src/components/MissionCard';
+import {
+  ProductCollectionScreen,
+  ProductCompleteScreen,
+  ProductDiscoverScreen,
+  ProductEvidencePickerScreen,
+  ProductInvestigateScreen,
+  ProductMissionDetailScreen,
+} from './src/components/FigmaProductScreens';
 
 type Screen =
   | 'onboarding'
@@ -321,39 +328,12 @@ function Onboarding({ go }: { go: (s: Screen) => void }) {
 
 function Discover({ go }: { go: (s: Screen) => void }) {
   return (
-    <Frame nav={<BottomNav active="discover" go={go} />}>
-      <TopBar title="FIND OUT" type="root" onProfile={() => go('profile')} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <TitleBlock
-          title="Something familiar. Something unnoticed."
-          body="Open one mission and investigate it your way."
-        />
-        <View style={styles.search}>
-          <Ionicons name="search-outline" size={20} />
-          <AppText style={{ color: colors.muted }}>Search missions</AppText>
-        </View>
-        <View style={styles.filter}>
-          <View style={styles.limeDot} />
-          <AppText style={styles.label}>All</AppText>
-        </View>
-        <MissionCard
-          category={activeMission.category}
-          title={activeMission.title}
-          description={activeMission.hook}
-          progressLabel="0 of 1 discovery"
-          progress={0.08}
-          onPress={() => go('mission-detail')}
-        />
-        <MissionCard
-          category="CITY TRACE"
-          title={nextMission.title}
-          description={nextMission.hook}
-          progressLabel={nextMission.locked}
-          progress={0}
-          disabled
-        />
-      </ScrollView>
-    </Frame>
+    <ProductDiscoverScreen
+      onOpenFeatured={() => go('mission-detail')}
+      onOpenMission={() => go('mission-detail')}
+      onCollection={() => go('my-discoveries')}
+      onProfile={() => go('profile')}
+    />
   );
 }
 
@@ -365,38 +345,17 @@ function MissionDetail({
   back: () => void;
 }) {
   return (
-    <Frame>
-      <TopBar title="Mission" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View
-          style={[
-            styles.filter,
-            {
-              width: 155,
-              backgroundColor: colors.blueSubtle,
-              borderColor: colors.blueSubtle,
-            },
-          ]}
-        >
-          <View style={[styles.limeDot, { backgroundColor: colors.blue }]} />
-          <AppText style={{ ...styles.label, color: colors.blue }}>SOUND MISSION</AppText>
-        </View>
-
-        <TitleBlock title={activeMission.title} body={activeMission.summary} />
-        <Stepper stage="Notice" />
-
-        <View style={styles.clue}>
-          <View style={styles.clueRailTop} />
-          <View style={styles.clueRailBottom} />
-          <AppText style={styles.eyebrowBlue}>CLUE 01 · OPEN</AppText>
-          <AppText style={styles.clueQ}>{activeMission.question}</AppText>
-          <AppText style={styles.body}>{activeMission.guidance}</AppText>
-          <View style={styles.clueDot} />
-        </View>
-
-        <Button label="Open the mission" onPress={() => go('investigate')} />
-      </ScrollView>
-    </Frame>
+    <ProductMissionDetailScreen
+      number={activeMission.number}
+      difficulty="MEDIUM"
+      evidence="Photo"
+      title={activeMission.title}
+      summary={activeMission.summary}
+      question={activeMission.question}
+      guidance={activeMission.guidance}
+      onBack={back}
+      onOpen={() => go('investigate')}
+    />
   );
 }
 
@@ -408,41 +367,12 @@ function Investigate({
   back: () => void;
 }) {
   return (
-    <Frame>
-      <TopBar title="Investigate" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content16}>
-        <Stepper stage="Investigate" />
-
-        <View style={styles.signal}>
-          <View style={styles.signalRail}>
-            <View style={styles.signalDot} />
-          </View>
-          <View style={{ flex: 1, gap: 24 }}>
-            <AppText style={styles.h1}>Follow the signal</AppText>
-            <AppText style={styles.body}>
-              Move slowly. Let one detail lead you to the next.
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.questionCard}>
-          <AppText style={styles.eyebrow}>YOUR MISSION</AppText>
-          <AppText style={styles.questionText}>
-            What familiar sound are you following?
-          </AppText>
-          <View style={styles.smallLimeDot} />
-        </View>
-
-        <View style={styles.guidance}>
-          <AppText style={styles.guidanceTitle}>Pay closer attention</AppText>
-          <AppText style={styles.guidanceBody}>
-            Notice what stands out, then decide what matters.
-          </AppText>
-        </View>
-
-        <Button label="I found something" onPress={() => go('evidence')} />
-      </ScrollView>
-    </Frame>
+    <ProductInvestigateScreen
+      question={activeMission.question}
+      onBack={back}
+      onExit={() => go('discover')}
+      onFound={() => go('evidence')}
+    />
   );
 }
 
@@ -453,53 +383,12 @@ function Evidence({
   go: (s: Screen) => void;
   back: () => void;
 }) {
-  const captureOptions: Array<{
-    mode: CaptureMode;
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-  }> = [
-    { mode: 'photo', icon: 'camera-outline', label: 'Photo' },
-    { mode: 'video', icon: 'videocam-outline', label: 'Video' },
-    { mode: 'audio', icon: 'mic-outline', label: 'Audio' },
-  ];
-
   return (
-    <Frame>
-      <TopBar title="Capture evidence" onBack={back} />
-      <ScrollView contentContainerStyle={styles.evidenceContent}>
-        <Stepper stage="Document" />
-        <TitleBlock
-          title="Capture what you found"
-          body="Choose the format that best shows your discovery."
-        />
-
-        <View style={styles.evidencePreview}>
-          <View style={styles.evidenceCorner}>
-            <View style={styles.evTop} />
-            <View style={styles.evLeft} />
-            <View style={styles.evDot} />
-          </View>
-        </View>
-
-        <View style={styles.captureRow}>
-          {captureOptions.map(({ mode, icon, label }) => (
-            <Pressable
-              key={mode}
-              onPress={() => goCapture(go, mode)}
-              style={({ pressed }) => [
-                styles.captureAction,
-                pressed && { backgroundColor: colors.blueSubtle },
-              ]}
-            >
-              <View style={styles.captureIcon}>
-                <Ionicons name={icon} size={24} color={colors.blue} />
-              </View>
-              <AppText style={styles.label}>{label}</AppText>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-    </Frame>
+    <ProductEvidencePickerScreen
+      onBack={back}
+      onExit={() => go('discover')}
+      onSelect={(mode) => goCapture(go, mode)}
+    />
   );
 }
 
@@ -739,52 +628,11 @@ function Document({
 
 function MissionComplete({ go }: { go: (s: Screen) => void }) {
   return (
-    <Frame>
-      <TopBar title="Mission complete" type="close" onBack={() => go('discover')} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Stepper stage="Submit" />
-
-        <View style={styles.success}>
-          <Ionicons name="checkmark" size={28} color={colors.ink} />
-        </View>
-
-        <View style={{ alignItems: 'center', gap: 8 }}>
-          <AppText style={styles.h1}>Discovery submitted</AppText>
-          <AppText style={styles.body}>
-            See how others answered the same mission.
-          </AppText>
-        </View>
-
-        <MissionCard
-          state="completed"
-          title={activeMission.title}
-          description="Mission complete. Your discovery is saved."
-          progressLabel="1 of 1 discovery"
-          progress={1}
-        />
-
-        <View style={styles.trophyCard}>
-          <Ionicons name="trophy-outline" size={32} color={colors.blue} />
-          <View style={{ flex: 1 }}>
-            <AppText style={styles.eyebrowBlue}>TROPHY UNLOCKED</AppText>
-            <AppText style={styles.h3}>Sharp Observer</AppText>
-            <AppText style={styles.smallMuted}>
-              You documented three field discoveries.
-            </AppText>
-          </View>
-        </View>
-
-        <Button
-          label="See other discoveries"
-          onPress={() => go('other-discoveries')}
-        />
-        <Button
-          outline
-          label="Explore another mission"
-          onPress={() => go('discover')}
-        />
-      </ScrollView>
-    </Frame>
+    <ProductCompleteScreen
+      onClose={() => go('discover')}
+      onOtherDiscoveries={() => go('other-discoveries')}
+      onExplore={() => go('discover')}
+    />
   );
 }
 
@@ -879,45 +727,13 @@ function DiscoveryDetail({ back }: { back: () => void }) {
 
 function MyDiscoveries({ go }: { go: (s: Screen) => void }) {
   return (
-    <Frame nav={<BottomNav active="mission" go={go} />}>
-      <TopBar
-        title="My Discoveries"
-        type="root"
-        onProfile={() => go('profile')}
-      />
-      <ScrollView contentContainerStyle={styles.content}>
-        <TitleBlock title="My Discoveries" body="Your missions and discoveries" />
-
-        <MissionCard
-          state="active"
-          title={activeMission.title}
-          description="Keep investigating—your discovery is still open."
-          progressLabel="1 of 4 steps"
-          progress={0.25}
-          onPress={() => go('investigate')}
-        />
-
-        <View style={styles.sectionHeading}>
-          <AppText style={styles.h3}>Evidence Cards</AppText>
-          <AppText style={styles.smallMuted}>Your saved discoveries</AppText>
-        </View>
-
-        <View style={styles.evidenceGrid}>
-          <SavedEvidenceCard
-            title="The place has changed"
-            category="CITY TRACE"
-            note="A different shop now occupies the address."
-            onPress={() => go('evidence-detail')}
-          />
-          <SavedEvidenceCard
-            title={yourDiscovery.title}
-            category="CITY SOUND"
-            note={yourDiscovery.note}
-            icon="volume-medium-outline"
-          />
-        </View>
-      </ScrollView>
-    </Frame>
+    <ProductCollectionScreen
+      activeMissionTitle={activeMission.title}
+      onContinue={() => go('investigate')}
+      onEvidence={() => go('evidence-detail')}
+      onDiscover={() => go('discover')}
+      onProfile={() => go('profile')}
+    />
   );
 }
 

@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Archivo_600SemiBold,
+  Archivo_700Bold,
   useFonts as useArchivoFonts,
 } from '@expo-google-fonts/archivo';
 import {
@@ -33,6 +34,7 @@ import {
   ProductEvidencePickerScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
+  ProductOnboardingScreen,
   ProductProfileScreen,
 } from './src/components/FigmaProductScreens';
 
@@ -302,29 +304,10 @@ function MissionNumber({ number }: { number: string }) {
 
 function Onboarding({ go }: { go: (s: Screen) => void }) {
   return (
-    <View style={styles.onboarding}>
-      <View style={styles.logoLockup}>
-        <Image source={brandMark} style={styles.logoMark} />
-        <View>
-          <AppText style={styles.logoName}>FIND OUT</AppText>
-          <AppText style={styles.logoTag}>OPEN DISCOVERY</AppText>
-        </View>
-      </View>
-
-      <View style={{ marginTop: 190, gap: 24 }}>
-        <AppText style={styles.h1}>Turn curiosity into a mission.</AppText>
-        <AppText style={styles.body}>
-          Notice what is missing, investigate the real world, and submit your own discovery.
-        </AppText>
-      </View>
-
-      <View style={{ marginTop: 'auto', gap: 10 }}>
-        <Button label="Start exploring" onPress={() => go('discover')} />
-        <Button outline label="How it works" onPress={() => go('discover')} />
-      </View>
-
-      <AppText style={styles.footer}>Notice  •  Investigate  •  Submit  •  Reveal</AppText>
-    </View>
+    <ProductOnboardingScreen
+      onStart={() => go('discover')}
+      onHowItWorks={() => go('discover')}
+    />
   );
 }
 
@@ -870,7 +853,7 @@ function Share({ back }: { back: () => void }) {
 }
 
 export default function App() {
-  const [aLoaded] = useArchivoFonts({ Archivo_600SemiBold });
+  const [aLoaded] = useArchivoFonts({ Archivo_600SemiBold, Archivo_700Bold });
   const [iLoaded] = useInterFonts({
     Inter_400Regular,
     Inter_500Medium,

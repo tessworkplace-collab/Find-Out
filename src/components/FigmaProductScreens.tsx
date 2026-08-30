@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BRAND_MARK_URI } from '../brand';
+import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
 import { colors, radius } from '../theme';
 
 type TopBarType = 'root' | 'back' | 'close';
@@ -285,6 +286,52 @@ function FilterChip({
       {selected ? <View style={styles.filterDot} /> : null}
       <Text style={[styles.filterText, selected && styles.filterTextSelected]}>
         {label}
+      </Text>
+    </View>
+  );
+}
+
+type ProductOnboardingScreenProps = {
+  onStart: () => void;
+  onHowItWorks: () => void;
+};
+
+export function ProductOnboardingScreen({
+  onStart,
+  onHowItWorks,
+}: ProductOnboardingScreenProps) {
+  return (
+    <View style={styles.onboardingScreen}>
+      <View style={styles.onboardingHero}>
+        <Image source={{ uri: ONBOARDING_LOGO_URI }} style={styles.onboardingLogo} />
+        <Image
+          source={{ uri: ONBOARDING_ILLUSTRATION_URI }}
+          style={styles.onboardingIllustration}
+        />
+        <View style={styles.onboardingTitleBlock}>
+          <Text style={styles.onboardingTitle}>Turn curiosity into a mission.</Text>
+          <Text style={styles.onboardingBody}>
+            Notice what is missing, investigate the real world, and submit your own discovery.
+          </Text>
+        </View>
+      </View>
+
+      <Pressable
+        onPress={onStart}
+        style={({ pressed }) => [styles.onboardingPrimary, pressed && styles.pressed]}
+      >
+        <Text style={styles.actionButtonText}>Start exploring</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={onHowItWorks}
+        style={({ pressed }) => [styles.onboardingSecondary, pressed && styles.pressed]}
+      >
+        <Text style={styles.actionButtonTextOutline}>How it works</Text>
+      </Pressable>
+
+      <Text style={styles.onboardingFooter}>
+        Notice  •  Investigate  •  Submit  •  Reveal
       </Text>
     </View>
   );
@@ -1070,6 +1117,88 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     letterSpacing: 0.8,
+  },
+
+  onboardingScreen: {
+    flex: 1,
+    backgroundColor: colors.white,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 24,
+    gap: 12,
+    alignItems: 'center',
+  },
+  onboardingHero: {
+    width: '100%',
+    height: 590,
+    position: 'relative',
+  },
+  onboardingLogo: {
+    position: 'absolute',
+    left: 0,
+    top: 8,
+    width: 216,
+    height: 57,
+    resizeMode: 'contain',
+  },
+  onboardingIllustration: {
+    position: 'absolute',
+    left: 0,
+    top: 84,
+    width: '100%',
+    height: 240,
+    resizeMode: 'contain',
+  },
+  onboardingTitleBlock: {
+    position: 'absolute',
+    left: 18,
+    right: 0,
+    top: 364,
+    gap: 18,
+  },
+  onboardingTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_700Bold',
+    fontSize: 36,
+    lineHeight: 40,
+    letterSpacing: -0.8,
+  },
+  onboardingBody: {
+    width: 330,
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  onboardingPrimary: {
+    width: '100%',
+    height: 50,
+    borderRadius: radius.md,
+    backgroundColor: colors.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  onboardingSecondary: {
+    width: '100%',
+    height: 50,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.blue,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  onboardingFooter: {
+    width: '100%',
+    height: 14,
+    color: colors.muted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+    textAlign: 'center',
   },
 
   discoverContent: {

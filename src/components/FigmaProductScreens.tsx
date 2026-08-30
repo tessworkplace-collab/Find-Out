@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -549,6 +550,102 @@ export function ProductEvidencePickerScreen({
   );
 }
 
+type ProductDocumentScreenProps = {
+  observation: string;
+  location: string;
+  onChangeObservation: (value: string) => void;
+  onChangeLocation: (value: string) => void;
+  onBack: () => void;
+  onExit?: () => void;
+  onSubmit: () => void;
+  onStepPress?: (index: number) => void;
+  maxStep?: number;
+  submitLabel?: string;
+  submitDisabled?: boolean;
+};
+
+export function ProductDocumentScreen({
+  observation,
+  location,
+  onChangeObservation,
+  onChangeLocation,
+  onBack,
+  onExit,
+  onSubmit,
+  onStepPress,
+  maxStep = 2,
+  submitLabel = 'Submit discovery',
+  submitDisabled = false,
+}: ProductDocumentScreenProps) {
+  return (
+    <View style={styles.screen}>
+      <FigmaTopBar title="Document" type="back" onLeading={onBack} onTrailing={onExit} />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.documentContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <FigmaMissionStepper active={2} maxStep={maxStep} onStepPress={onStepPress} />
+
+        <View style={styles.documentTitleBlock}>
+          <Text style={styles.fieldNoteIndex}>FIELD NOTE · 03</Text>
+          <View style={styles.titleBlock}>
+            <Text style={styles.h1}>Describe what you found</Text>
+            <Text style={styles.body}>
+              Add just enough context for someone else to understand what you found.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Observation</Text>
+          <TextInput
+            multiline
+            value={observation}
+            onChangeText={onChangeObservation}
+            style={styles.formInput}
+          />
+          <Text style={styles.formHelper}>Saved as draft</Text>
+        </View>
+
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Location</Text>
+          <TextInput
+            value={location}
+            onChangeText={onChangeLocation}
+            placeholder="Where did you find it?"
+            placeholderTextColor={colors.muted}
+            style={styles.formInput}
+          />
+          <Text style={styles.formHelper}>Optional place name</Text>
+        </View>
+
+        <View style={styles.evidenceBanner}>
+          <Ionicons name="information-circle-outline" size={20} color={colors.blue} />
+          <View style={styles.evidenceBannerCopy}>
+            <Text style={styles.evidenceBannerTitle}>Evidence linked</Text>
+            <Text style={styles.evidenceBannerText}>
+              This entry stays connected to your mission.
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          disabled={submitDisabled}
+          onPress={onSubmit}
+          style={({ pressed }) => [
+            styles.actionButton,
+            submitDisabled && styles.disabled,
+            pressed && !submitDisabled && styles.pressed,
+          ]}
+        >
+          <Text style={styles.actionButtonText}>{submitLabel}</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
+
 type ProductCompleteScreenProps = {
   onClose: () => void;
   onOtherDiscoveries: () => void;
@@ -720,6 +817,107 @@ export function ProductCollectionScreen({
         onProfile={onProfile}
       />
     </View>
+  );
+}
+
+type ProductProfileScreenProps = {
+  name?: string;
+  stats?: string;
+  onDiscover: () => void;
+  onMission: () => void;
+  onTrophies?: () => void;
+};
+
+export function ProductProfileScreen({
+  name = 'Tess',
+  stats = '12 discoveries  ·  3 missions completed',
+  onDiscover,
+  onMission,
+  onTrophies,
+}: ProductProfileScreenProps) {
+  const [reminders, setReminders] = React.useState(true);
+  const [locationAccess, setLocationAccess] = React.useState(false);
+
+  return (
+    <View style={styles.screen}>
+      <FigmaTopBar title="Profile" type="root" />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.profileContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.profileSummary}>
+          <View style={styles.profileAvatar}>
+            <Ionicons name="person-outline" size={36} color={colors.white} />
+          </View>
+          <Text style={styles.profileName}>{name}</Text>
+          <Text style={styles.profileStats}>{stats}</Text>
+        </View>
+
+        <Pressable onPress={onTrophies} style={styles.profileTrophySection}>
+          <View style={styles.profileSectionHeader}>
+            <View style={styles.profileSectionTitleRow}>
+              <Text style={styles.profileSectionTitle}>Trophies</Text>
+              <View style={styles.profileClueDot} />
+            </View>
+            <Text style={styles.profileSectionLink}>2 / 4 · View all</Text>
+          </View>
+
+          <View style={styles.trophyCard}>
+            <View style={styles.trophyIconStage}>
+              <Ionicons name="trophy-outline" size={32} color={colors.blue} />
+            </View>
+            <View style={styles.trophyCopy}>
+              <Text style={styles.trophyTitle}>Sharp Observer</Text>
+              <Text style={styles.trophyDescription}>Three discoveries documented.</Text>
+            </View>
+            <View style={styles.trophyPill}>
+              <Text style={styles.trophyPillText}>Unlocked</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        <View style={styles.preferences}>
+          <Text style={styles.preferencesTitle}>Preferences</Text>
+          <PreferenceRow
+            label="Mission reminders"
+            value={reminders}
+            onPress={() => setReminders((value) => !value)}
+          />
+          <PreferenceRow
+            label="Location access"
+            value={locationAccess}
+            onPress={() => setLocationAccess((value) => !value)}
+          />
+        </View>
+      </ScrollView>
+
+      <FigmaBottomNavigation
+        active="profile"
+        onDiscover={onDiscover}
+        onMission={onMission}
+        onProfile={() => undefined}
+      />
+    </View>
+  );
+}
+
+function PreferenceRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.preferenceRow}>
+      <Text style={styles.preferenceLabel}>{label}</Text>
+      <View style={[styles.switchTrack, value && styles.switchTrackOn]}>
+        <View style={[styles.switchThumb, value && styles.switchThumbOn]} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -1249,6 +1447,74 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  documentContent: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 20,
+    gap: 12,
+  },
+  documentTitleBlock: { width: '100%', gap: 12 },
+  fieldNoteIndex: {
+    color: colors.blue,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    lineHeight: 16,
+    letterSpacing: 0.88,
+  },
+  formField: { width: '100%', gap: 6 },
+  formLabel: {
+    color: colors.ink,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  formInput: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.sm,
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 3,
+    color: colors.ink,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlignVertical: 'center',
+  },
+  formHelper: {
+    color: colors.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  evidenceBanner: {
+    width: '100%',
+    height: 72,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueBanner,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  evidenceBannerCopy: { flex: 1, gap: 2 },
+  evidenceBannerTitle: {
+    color: '#12141A',
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  evidenceBannerText: {
+    color: '#596173',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  disabled: { opacity: 0.45 },
+
   completeContent: {
     paddingHorizontal: 24,
     paddingTop: 18,
@@ -1500,5 +1766,115 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  evidenceThumbnailMark: { width: 52, height: 52, resizeMode: 'contain' },
+  evidenceThumbnailMark: { width: 52, height: 52, resizeMode: 'contain' },  profileContent: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 16,
+    gap: 18,
+  },
+  profileSummary: {
+    width: '100%',
+    minHeight: 198,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
+    backgroundColor: colors.blueSubtle,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 10,
+  },
+  profileAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileName: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: -0.24,
+  },
+  profileStats: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  profileTrophySection: { width: '100%', height: 146, gap: 8 },
+  profileSectionHeader: {
+    width: '100%',
+    height: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  profileSectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  profileSectionTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  profileClueDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.lime,
+  },
+  profileSectionLink: {
+    color: colors.blue,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  preferences: { width: '100%', gap: 10 },
+  preferencesTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  preferenceRow: {
+    width: '100%',
+    height: 64,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  preferenceLabel: {
+    flex: 1,
+    color: colors.ink,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  switchTrack: {
+    width: 56,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.borderStrong,
+    padding: 3,
+  },
+  switchTrackOn: { backgroundColor: colors.blue },
+  switchThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.white,
+  },
+  switchThumbOn: { marginLeft: 24 },
+
 });

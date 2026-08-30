@@ -37,6 +37,7 @@ import {
 import {
   Inter_400Regular,
   Inter_500Medium,
+  Inter_600SemiBold,
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
@@ -54,7 +55,14 @@ import {
   loadCompletedDiscoveries,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
-import MissionCard from './src/components/MissionCard';
+import {
+  ProductCollectionScreen,
+  ProductCompleteScreen,
+  ProductDiscoverScreen,
+  ProductEvidencePickerScreen,
+  ProductInvestigateScreen,
+  ProductMissionDetailScreen,
+} from './src/components/FigmaProductScreens';
 
 type Screen =
   | 'discover'
@@ -312,7 +320,7 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
 
 export default function NativeApp() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
-  const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
+  const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [screen, setScreen] = useState<Screen>('discover');
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
   const [evidence, setEvidence] = useState<Evidence | null>(null);
@@ -325,7 +333,6 @@ export default function NativeApp() {
   const [observation, setObservation] = useState(DEFAULT_OBSERVATION);
   const [location, setLocation] = useState('');
   const [draftReady, setDraftReady] = useState(false);
-  const [captureOptionsVisible, setCaptureOptionsVisible] = useState(false);
   const [discoveries, setDiscoveries] = useState<CompletedDiscovery[]>([]);
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
 
@@ -675,7 +682,6 @@ export default function NativeApp() {
     setObservation(DEFAULT_OBSERVATION);
     setLocation('');
     setCaptureMode('audio');
-    setCaptureOptionsVisible(false);
     setScreen('discover');
   };
 
@@ -974,317 +980,86 @@ export default function NativeApp() {
 
   if (screen === 'complete') {
     return (
-      <SafeAreaView style={styles.safe}>
-        <TopBar title="Mission complete" onExit={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={3} maxStep={highestStep} onStepPress={goToStep} />
-          <View style={styles.completeWrap}>
-            <View style={styles.successCircle}>
-              <Ionicons name="checkmark" size={34} color={colors.ink} />
-            </View>
-            <AppText style={styles.h1}>Discovery submitted</AppText>
-            <AppText style={styles.body}>
-              Your evidence has been captured and attached to this mission entry.
-            </AppText>
-            <MissionCard
-              state="completed"
-              title={activeMission.title}
-              description="Mission complete. Your discovery is saved."
-              progressLabel="1 of 1 discovery"
-              progress={1}
-            />
-            {evidence ? (
-              <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
-            ) : null}
-            <PrimaryButton outline label="View My Discoveries" onPress={openMyDiscoveries} />
-            <PrimaryButton label="Explore another mission" onPress={resetMission} />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+      <ProductCompleteScreen
+        onClose={() => setScreen('discover')}
+        onOtherDiscoveries={openMyDiscoveries}
+        onExplore={resetMission}
+      />
     );
   }
 
   if (screen === 'discoveries') {
-    const latestDiscovery = discoveries[0];
-    const earlierDiscoveries = discoveries.slice(1);
-
     return (
-      <SafeAreaView style={styles.safe}>
-        <TopBar title="My Discoveries" onBack={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <AppText style={styles.eyebrow}>MY DISCOVERIES</AppText>
-          <AppText style={styles.h1}>What caught your attention.</AppText>
-          <AppText style={styles.body}>A record of the things you chose to notice.</AppText>
-
-          <View style={styles.archiveSummary}>
-            <View>
-              <AppText style={styles.archiveCount}>{discoveries.length.toString().padStart(2, '0')}</AppText>
-              <AppText style={styles.archiveLabel}>
-                {discoveries.length === 1 ? 'DISCOVERY' : 'DISCOVERIES'}
-              </AppText>
-            </View>
-            <View style={styles.archiveSavedRow}>
-              <View style={styles.archiveDot} />
-              <AppText style={styles.smallMuted}>SAVED ON THIS DEVICE</AppText>
-            </View>
-          </View>
-
-          {discoveries.length === 0 ? (
-            <View style={styles.emptyJournalCard}>
-              <Ionicons name="bookmark-outline" size={30} color={colors.blue} />
-              <AppText style={styles.h3}>Your field journal starts here</AppText>
-              <AppText style={styles.body}>Finish a mission and your first discovery will appear here.</AppText>
-            </View>
-          ) : latestDiscovery ? (
-            <>
-              <AppText style={styles.sectionLabel}>LATEST DISCOVERY</AppText>
-              <View style={styles.featuredDiscovery}>
-                <View style={styles.featuredMedia}>
-                  {latestDiscovery.evidence.type === 'photo' ? (
-                    <Image source={{ uri: latestDiscovery.evidence.uri }} style={styles.featuredImage} />
-                  ) : latestDiscovery.evidence.type === 'audio' ? (
-                    <View style={styles.featuredAudio}>
-                      <Ionicons name="mic-outline" size={34} color={colors.blue} />
-                      <View style={styles.featuredWaveform}>
-                        {[24, 48, 34, 70, 42, 58, 30, 64, 38, 52, 28].map((height, index) => (
-                          <View key={index} style={[styles.featuredWaveBar, { height }]} />
-                        ))}
-                      </View>
-                      <AppText style={styles.archiveLabel}>AUDIO EVIDENCE</AppText>
-                    </View>
-                  ) : (
-                    <View style={styles.featuredVideo}>
-                      <View style={styles.videoBadge}>
-                        <Ionicons name="videocam-outline" size={34} color={colors.blue} />
-                      </View>
-                      <AppText style={styles.archiveLabel}>VIDEO EVIDENCE</AppText>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.featuredBody}>
-                  <View style={styles.featuredMetaRow}>
-                    <View style={styles.badge}>
-                      <AppText style={styles.badgeText}>{latestDiscovery.category}</AppText>
-                    </View>
-                    <AppText style={styles.discoveryNumber}>01</AppText>
-                  </View>
-                  <AppText style={styles.h2}>{latestDiscovery.missionTitle}</AppText>
-                  <AppText style={styles.featuredObservation}>{latestDiscovery.observation}</AppText>
-                  <View style={styles.featuredFooter}>
-                    <AppText style={styles.smallMuted}>{latestDiscovery.location || 'Location not added'}</AppText>
-                    <AppText style={styles.smallMuted}>{new Date(latestDiscovery.completedAt).toLocaleDateString()}</AppText>
-                  </View>
-                  <View style={styles.fieldNoteStamp}>
-                    <Ionicons name="checkmark-circle-outline" size={18} color={colors.blue} />
-                    <AppText style={styles.archiveLabel}>FIELD NOTE · SAVED</AppText>
-                  </View>
-                </View>
-              </View>
-
-              {earlierDiscoveries.length > 0 ? (
-                <>
-                  <AppText style={styles.sectionLabel}>EARLIER DISCOVERIES</AppText>
-                  {earlierDiscoveries.map((item, index) => (
-                    <View key={item.id} style={styles.discoveryCard}>
-                      <View style={styles.discoveryMedia}>
-                        {item.evidence.type === 'photo' ? (
-                          <Image source={{ uri: item.evidence.uri }} style={styles.discoveryImage} />
-                        ) : (
-                          <Ionicons
-                            name={item.evidence.type === 'video' ? 'videocam-outline' : 'mic-outline'}
-                            size={30}
-                            color={colors.blue}
-                          />
-                        )}
-                      </View>
-                      <View style={{ flex: 1, gap: 5 }}>
-                        <View style={styles.earlierMetaRow}>
-                          <AppText style={styles.eyebrow}>{item.category}</AppText>
-                          <AppText style={styles.smallMuted}>{(index + 2).toString().padStart(2, '0')}</AppText>
-                        </View>
-                        <AppText style={styles.h3}>{item.missionTitle}</AppText>
-                        <AppText style={styles.body}>{item.observation}</AppText>
-                        <AppText style={styles.smallMuted}>
-                          {item.location ? `${item.location} · ` : ''}
-                          {new Date(item.completedAt).toLocaleDateString()}
-                        </AppText>
-                      </View>
-                    </View>
-                  ))}
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </ScrollView>
-      </SafeAreaView>
+      <ProductCollectionScreen
+        activeMissionTitle={activeMission.title}
+        evidence={discoveries.slice(0, 2).map((item, index) => ({
+          id: item.id,
+          day: index === 0 ? 'TODAY' : 'EARLIER',
+          title: item.missionTitle,
+          note: item.observation,
+        }))}
+        onContinue={() => setScreen('investigate')}
+        onEvidence={() => {
+          if (evidence) setScreen('preview');
+        }}
+        onDiscover={() => setScreen('discover')}
+      />
     );
   }
 
   if (screen === 'evidence') {
     return (
-      <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Capture evidence"
-          onBack={() => setScreen('investigate')}
-          onExit={exitMissionToHome}
-        />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.h1}>Capture what you found</AppText>
-          <AppText style={styles.body}>Choose the format that best shows your discovery.</AppText>
-          <View style={styles.captureOptions}>
-            {([
-              ['photo', 'camera-outline', 'Photo'],
-              ['video', 'videocam-outline', 'Video'],
-              ['audio', 'mic-outline', 'Audio'],
-            ] as const).map(([mode, icon, label]) => (
-              <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
-                <View style={styles.optionIcon}>
-                  <Ionicons name={icon} size={28} color={colors.blue} />
-                </View>
-                <AppText style={styles.label}>{label}</AppText>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+      <ProductEvidencePickerScreen
+        onBack={() => setScreen('investigate')}
+        onExit={exitMissionToHome}
+        onSelect={goCapture}
+        onStepPress={goToStep}
+        maxStep={highestStep}
+      />
     );
   }
 
   if (screen === 'investigate') {
     return (
-      <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Investigate"
-          onBack={() => setScreen('mission')}
-          onExit={exitMissionToHome}
-        />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={1} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.h1}>Follow the signal</AppText>
-          <AppText style={styles.body}>Move slowly. Let one detail lead you to the next.</AppText>
-          <View style={styles.questionCard}>
-            <AppText style={styles.eyebrow}>YOUR MISSION</AppText>
-            <AppText style={styles.h3}>What familiar sound are you following?</AppText>
-          </View>
-          <View style={styles.guidanceCard}>
-            <AppText style={styles.label}>Pay closer attention</AppText>
-            <AppText style={styles.body}>Notice what stands out, then decide what matters.</AppText>
-          </View>
-          {!captureOptionsVisible ? (
-            <PrimaryButton
-              label="I found something"
-              onPress={() => setCaptureOptionsVisible(true)}
-            />
-          ) : (
-            <View style={styles.questionCard}>
-              <AppText style={styles.eyebrow}>CAPTURE WHAT YOU FOUND</AppText>
-              <AppText style={styles.body}>
-                Choose the format that best shows your discovery.
-              </AppText>
-              <View style={styles.captureOptions}>
-                {([
-                  ['photo', 'camera-outline', 'Photo'],
-                  ['video', 'videocam-outline', 'Video'],
-                  ['audio', 'mic-outline', 'Audio'],
-                ] as const).map(([mode, icon, label]) => (
-                  <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
-                    <View style={styles.optionIcon}>
-                      <Ionicons name={icon} size={28} color={colors.blue} />
-                    </View>
-                    <AppText style={styles.label}>{label}</AppText>
-                  </Pressable>
-                ))}
-              </View>
-              <AppText style={styles.smallMuted}>Nothing is submitted until Step 4.</AppText>
-            </View>
-          )}
-        </ScrollView>
-      </SafeAreaView>
+      <ProductInvestigateScreen
+        question={activeMission.question}
+        onBack={() => setScreen('mission')}
+        onExit={exitMissionToHome}
+        onFound={() => {
+          updateHighestStep(2);
+          setScreen('evidence');
+        }}
+        onStepPress={goToStep}
+        maxStep={highestStep}
+      />
     );
   }
 
   if (screen === 'mission') {
     return (
-      <SafeAreaView style={styles.safe}>
-        <TopBar title="Mission" onBack={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.category}</AppText>
-          </View>
-          <AppText style={styles.h1}>{activeMission.title}</AppText>
-          <AppText style={styles.body}>{activeMission.summary}</AppText>
-          <Stepper active={0} maxStep={highestStep} onStepPress={goToStep} />
-          <View style={styles.clueCard}>
-            <AppText style={styles.eyebrow}>CLUE 01 · OPEN</AppText>
-            <AppText style={styles.h3}>{activeMission.question}</AppText>
-            <AppText style={styles.body}>{activeMission.guidance}</AppText>
-          </View>
-          <PrimaryButton
-            label="Open the mission"
-            onPress={() => {
-              updateHighestStep(1);
-              setScreen('investigate');
-            }}
-          />
-        </ScrollView>
-      </SafeAreaView>
+      <ProductMissionDetailScreen
+        number={activeMission.number}
+        difficulty="MEDIUM"
+        evidence="Photo"
+        title={activeMission.title}
+        summary={activeMission.summary}
+        question={activeMission.question}
+        guidance={activeMission.guidance}
+        onBack={() => setScreen('discover')}
+        onOpen={() => {
+          updateHighestStep(1);
+          setScreen('investigate');
+        }}
+      />
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
-      <TopBar title="FIND OUT" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <AppText style={styles.h1}>Something familiar. Something unnoticed.</AppText>
-        <AppText style={styles.body}>Open one mission and investigate it your way.</AppText>
-        <MissionCard
-          state={submitted ? 'completed' : highestStep > 0 ? 'active' : 'default'}
-          category={activeMission.category}
-          title={activeMission.title}
-          description={
-            submitted
-              ? 'Mission complete. Your discovery is saved.'
-              : highestStep > 0
-                ? 'Keep investigating—your discovery is still open.'
-                : activeMission.hook
-          }
-          progressLabel={
-            submitted
-              ? '1 of 1 discovery'
-              : highestStep > 0
-                ? `${Math.min(highestStep, 3)} of 4 steps`
-                : '0 of 1 discovery'
-          }
-          progress={submitted ? 1 : highestStep > 0 ? Math.min(highestStep / 4, 0.75) : 0.08}
-          onPress={() => {
-            if (submitted) {
-              openMyDiscoveries();
-            } else if (highestStep > 0) {
-              goToStep(Math.min(highestStep, 2));
-            } else {
-              setScreen('mission');
-            }
-          }}
-        />
-        <Pressable style={styles.linkedEvidence} onPress={openMyDiscoveries}>
-          <Ionicons name="bookmark-outline" size={26} color={colors.blue} />
-          <View style={{ flex: 1 }}>
-            <AppText style={styles.label}>My Discoveries</AppText>
-            <AppText style={styles.smallMuted}>Your completed field notes</AppText>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-        </Pressable>
-        <View style={styles.nativeNote}>
-          <Ionicons name="phone-portrait-outline" size={22} color={colors.blue} />
-          <AppText style={styles.body}>
-            Native MVP: camera, video and audio capture use the real device hardware.
-          </AppText>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <ProductDiscoverScreen
+      onOpenFeatured={() => setScreen('mission')}
+      onOpenMission={() => setScreen('mission')}
+      onCollection={openMyDiscoveries}
+    />
   );
 }
 

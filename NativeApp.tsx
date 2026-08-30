@@ -59,9 +59,11 @@ import {
   ProductCollectionScreen,
   ProductCompleteScreen,
   ProductDiscoverScreen,
+  ProductDocumentScreen,
   ProductEvidencePickerScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
+  ProductProfileScreen,
 } from './src/components/FigmaProductScreens';
 
 type Screen =
@@ -73,7 +75,8 @@ type Screen =
   | 'preview'
   | 'document'
   | 'complete'
-  | 'discoveries';
+  | 'discoveries'
+  | 'profile';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
 
@@ -915,66 +918,19 @@ export default function NativeApp() {
 
   if (screen === 'document') {
     return (
-      <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Document"
-          onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
-          onExit={exitMissionToHome}
-        />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.eyebrow}>FIELD NOTE · 03</AppText>
-          <AppText style={styles.h1}>Describe what you found</AppText>
-          <AppText style={styles.body}>
-            Add just enough context for someone else to understand what you found.
-          </AppText>
-          <View style={styles.field}>
-            <AppText style={styles.label}>Observation</AppText>
-            <TextInput
-              multiline
-              value={observation}
-              onChangeText={setObservation}
-              style={styles.input}
-            />
-          </View>
-          <View style={styles.field}>
-            <AppText style={styles.label}>Location</AppText>
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Optional place name"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
-            />
-          </View>
-
-          {evidence ? (
-            <Pressable style={styles.linkedEvidence} onPress={() => setScreen('preview')}>
-              <Ionicons name="play-circle-outline" size={28} color={colors.blue} />
-              <View style={{ flex: 1 }}>
-                <AppText style={styles.label}>{evidence.type.toUpperCase()} evidence linked</AppText>
-                <AppText style={styles.smallMuted}>
-                  {evidence.type === 'photo'
-                    ? 'Tap to review photo'
-                    : `Tap to play again · ${formatDuration(evidence.durationMs)}`}
-                </AppText>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-            </Pressable>
-          ) : null}
-
-          <View style={styles.draftNote}>
-            <Ionicons name="cloud-done-outline" size={18} color={colors.blue} />
-            <AppText style={styles.smallMuted}>Draft saves automatically on this device.</AppText>
-          </View>
-
-          <PrimaryButton
-            label={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
-            disabled={!evidence || submittingDiscovery}
-            onPress={submitDiscovery}
-          />
-        </ScrollView>
-      </SafeAreaView>
+      <ProductDocumentScreen
+        observation={observation}
+        location={location}
+        onChangeObservation={setObservation}
+        onChangeLocation={setLocation}
+        onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
+        onExit={exitMissionToHome}
+        onSubmit={submitDiscovery}
+        onStepPress={goToStep}
+        maxStep={highestStep}
+        submitLabel={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
+        submitDisabled={!evidence || submittingDiscovery}
+      />
     );
   }
 
@@ -1003,6 +959,7 @@ export default function NativeApp() {
           if (evidence) setScreen('preview');
         }}
         onDiscover={() => setScreen('discover')}
+        onProfile={() => setScreen('profile')}
       />
     );
   }
@@ -1054,11 +1011,21 @@ export default function NativeApp() {
     );
   }
 
+  if (screen === 'profile') {
+    return (
+      <ProductProfileScreen
+        onDiscover={() => setScreen('discover')}
+        onMission={openMyDiscoveries}
+      />
+    );
+  }
+
   return (
     <ProductDiscoverScreen
       onOpenFeatured={() => setScreen('mission')}
       onOpenMission={() => setScreen('mission')}
       onCollection={openMyDiscoveries}
+      onProfile={() => setScreen('profile')}
     />
   );
 }

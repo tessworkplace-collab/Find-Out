@@ -970,7 +970,7 @@ function PreferenceRow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  screen: { flex: 1, backgroundColor: colors.white },
+  screen: { flex: 1, width: '100%', maxWidth: 393, alignSelf: 'center', backgroundColor: colors.white },
   pressed: { opacity: 0.78 },
 
   topBar: {
@@ -1121,6 +1121,9 @@ const styles = StyleSheet.create({
 
   onboardingScreen: {
     flex: 1,
+    width: '100%',
+    maxWidth: 393,
+    alignSelf: 'center',
     backgroundColor: colors.white,
     paddingHorizontal: 24,
     paddingTop: 32,

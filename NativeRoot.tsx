@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   Archivo_600SemiBold,
@@ -59,10 +59,12 @@ export default function NativeRoot() {
     return (
       <>
         <StatusBar style="dark" />
-        <ProductOnboardingScreen
-          onStart={() => setGateState('app')}
-          onHowItWorks={() => setGateState('app')}
-        />
+        <SafeAreaView style={styles.productSafeArea}>
+          <ProductOnboardingScreen
+            onStart={() => setGateState('app')}
+            onHowItWorks={() => setGateState('app')}
+          />
+        </SafeAreaView>
       </>
     );
   }
@@ -150,6 +152,10 @@ export default function NativeRoot() {
 }
 
 const styles = StyleSheet.create({
+  productSafeArea: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.white,

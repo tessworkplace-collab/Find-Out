@@ -257,7 +257,9 @@ function BrowseMissionCard({
       </Text>
       <Text style={styles.browseDescription}>{description}</Text>
       <Text style={styles.browseAction}>{action}</Text>
-      <MissionNumber number={number} />
+      <View style={styles.browseMissionNumber}>
+        <MissionNumber number={number} />
+      </View>
     </Pressable>
   );
 }
@@ -927,6 +929,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     letterSpacing: 0.5,
+  },
+  browseMissionNumber: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
   },
   missionNumber: {
     width: 68,

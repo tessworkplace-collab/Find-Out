@@ -3,6 +3,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   Archivo_600SemiBold,
+  Archivo_700Bold,
   useFonts as useArchivoFonts,
 } from '@expo-google-fonts/archivo';
 import {
@@ -12,6 +13,7 @@ import {
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
 import NativeApp from './NativeApp';
+import { ProductOnboardingScreen } from './src/components/FigmaProductScreens';
 import { BRAND_MARK_URI } from './src/brand';
 import { clearDraft, DraftSnapshot, loadDraft } from './src/draftStorage';
 import { colors, radius } from './src/theme';
@@ -19,7 +21,7 @@ import { colors, radius } from './src/theme';
 type GateState = 'loading' | 'choice' | 'onboarding' | 'app';
 
 export default function NativeRoot() {
-  const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
+  const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold, Archivo_700Bold });
   const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
   const [gateState, setGateState] = useState<GateState>('loading');
   const [draft, setDraft] = useState<DraftSnapshot | null>(null);
@@ -55,44 +57,13 @@ export default function NativeRoot() {
 
   if (gateState === 'onboarding') {
     return (
-      <View style={styles.onboarding}>
+      <>
         <StatusBar style="dark" />
-
-        <View style={styles.logoLockup}>
-          <Image source={{ uri: BRAND_MARK_URI }} style={styles.logoMark} />
-          <View>
-            <Text style={styles.logoName}>FIND OUT</Text>
-            <Text style={styles.logoTag}>OPEN DISCOVERY</Text>
-          </View>
-        </View>
-
-        <View style={styles.onboardingCopy}>
-          <Text style={styles.onboardingTitle}>Turn curiosity into a mission.</Text>
-          <Text style={styles.onboardingBody}>
-            Notice what is missing, investigate the real world, and submit your own discovery.
-          </Text>
-        </View>
-
-        <View style={styles.onboardingActions}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setGateState('app')}
-            style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.82 }]}
-          >
-            <Text style={styles.primaryButtonText}>Start exploring</Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setGateState('app')}
-            style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.72 }]}
-          >
-            <Text style={styles.onboardingSecondaryText}>How it works</Text>
-          </Pressable>
-        </View>
-
-        <Text style={styles.footer}>Notice  •  Investigate  •  Submit  •  Reveal</Text>
-      </View>
+        <ProductOnboardingScreen
+          onStart={() => setGateState('app')}
+          onHowItWorks={() => setGateState('app')}
+        />
+      </>
     );
   }
 

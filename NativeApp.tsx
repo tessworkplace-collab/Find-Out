@@ -918,115 +918,131 @@ export default function NativeApp() {
 
   if (screen === 'document') {
     return (
-      <ProductDocumentScreen
-        observation={observation}
-        location={location}
-        onChangeObservation={setObservation}
-        onChangeLocation={setLocation}
-        onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
-        onExit={exitMissionToHome}
-        onSubmit={submitDiscovery}
-        onStepPress={goToStep}
-        maxStep={highestStep}
-        submitLabel={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
-        submitDisabled={!evidence || submittingDiscovery}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductDocumentScreen
+          observation={observation}
+          location={location}
+          onChangeObservation={setObservation}
+          onChangeLocation={setLocation}
+          onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
+          onExit={exitMissionToHome}
+          onSubmit={submitDiscovery}
+          onStepPress={goToStep}
+          maxStep={highestStep}
+          submitLabel={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
+          submitDisabled={!evidence || submittingDiscovery}
+        />
+      </SafeAreaView>
     );
   }
 
   if (screen === 'complete') {
     return (
-      <ProductCompleteScreen
-        onClose={() => setScreen('discover')}
-        onOtherDiscoveries={openMyDiscoveries}
-        onExplore={resetMission}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductCompleteScreen
+          onClose={() => setScreen('discover')}
+          onOtherDiscoveries={openMyDiscoveries}
+          onExplore={resetMission}
+        />
+      </SafeAreaView>
     );
   }
 
   if (screen === 'discoveries') {
     return (
-      <ProductCollectionScreen
-        activeMissionTitle={activeMission.title}
-        evidence={discoveries.slice(0, 2).map((item, index) => ({
-          id: item.id,
-          day: index === 0 ? 'TODAY' : 'EARLIER',
-          title: item.missionTitle,
-          note: item.observation,
-        }))}
-        onContinue={() => setScreen('investigate')}
-        onEvidence={() => {
-          if (evidence) setScreen('preview');
-        }}
-        onDiscover={() => setScreen('discover')}
-        onProfile={() => setScreen('profile')}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductCollectionScreen
+          activeMissionTitle={activeMission.title}
+          evidence={discoveries.slice(0, 2).map((item, index) => ({
+            id: item.id,
+            day: index === 0 ? 'TODAY' : 'EARLIER',
+            title: item.missionTitle,
+            note: item.observation,
+          }))}
+          onContinue={() => setScreen('investigate')}
+          onEvidence={() => {
+            if (evidence) setScreen('preview');
+          }}
+          onDiscover={() => setScreen('discover')}
+          onProfile={() => setScreen('profile')}
+        />
+      </SafeAreaView>
     );
   }
 
   if (screen === 'evidence') {
     return (
-      <ProductEvidencePickerScreen
-        onBack={() => setScreen('investigate')}
-        onExit={exitMissionToHome}
-        onSelect={goCapture}
-        onStepPress={goToStep}
-        maxStep={highestStep}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductEvidencePickerScreen
+          onBack={() => setScreen('investigate')}
+          onExit={exitMissionToHome}
+          onSelect={goCapture}
+          onStepPress={goToStep}
+          maxStep={highestStep}
+        />
+      </SafeAreaView>
     );
   }
 
   if (screen === 'investigate') {
     return (
-      <ProductInvestigateScreen
-        question={activeMission.question}
-        onBack={() => setScreen('mission')}
-        onExit={exitMissionToHome}
-        onFound={() => {
-          updateHighestStep(2);
-          setScreen('evidence');
-        }}
-        onStepPress={goToStep}
-        maxStep={highestStep}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductInvestigateScreen
+          question={activeMission.question}
+          onBack={() => setScreen('mission')}
+          onExit={exitMissionToHome}
+          onFound={() => {
+            updateHighestStep(2);
+            setScreen('evidence');
+          }}
+          onStepPress={goToStep}
+          maxStep={highestStep}
+        />
+      </SafeAreaView>
     );
   }
 
   if (screen === 'mission') {
     return (
-      <ProductMissionDetailScreen
-        number={activeMission.number}
-        difficulty="MEDIUM"
-        evidence="Photo"
-        title={activeMission.title}
-        summary={activeMission.summary}
-        question={activeMission.question}
-        guidance={activeMission.guidance}
-        onBack={() => setScreen('discover')}
-        onOpen={() => {
-          updateHighestStep(1);
-          setScreen('investigate');
-        }}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductMissionDetailScreen
+          number={activeMission.number}
+          difficulty="MEDIUM"
+          evidence="Photo"
+          title={activeMission.title}
+          summary={activeMission.summary}
+          question={activeMission.question}
+          guidance={activeMission.guidance}
+          onBack={() => setScreen('discover')}
+          onOpen={() => {
+            updateHighestStep(1);
+            setScreen('investigate');
+          }}
+        />
+      </SafeAreaView>
     );
   }
 
   if (screen === 'profile') {
     return (
-      <ProductProfileScreen
-        onDiscover={() => setScreen('discover')}
-        onMission={openMyDiscoveries}
-      />
+      <SafeAreaView style={styles.safe}>
+        <ProductProfileScreen
+          onDiscover={() => setScreen('discover')}
+          onMission={openMyDiscoveries}
+        />
+      </SafeAreaView>
     );
   }
 
   return (
-    <ProductDiscoverScreen
-      onOpenFeatured={() => setScreen('mission')}
-      onOpenMission={() => setScreen('mission')}
-      onCollection={openMyDiscoveries}
-      onProfile={() => setScreen('profile')}
-    />
+    <SafeAreaView style={styles.safe}>
+      <ProductDiscoverScreen
+        onOpenFeatured={() => setScreen('mission')}
+        onOpenMission={() => setScreen('mission')}
+        onCollection={openMyDiscoveries}
+        onProfile={() => setScreen('profile')}
+      />
+    </SafeAreaView>
   );
 }
 

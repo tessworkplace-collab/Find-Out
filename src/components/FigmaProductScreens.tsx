@@ -14,7 +14,7 @@ import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingA
 import { colors, radius } from '../theme';
 
 type TopBarType = 'root' | 'back' | 'close';
-type NavDestination = 'discover' | 'mission' | 'profile';
+type NavDestination = 'discover' | 'collection' | 'profile';
 type CaptureMode = 'photo' | 'video' | 'audio';
 
 type TopBarProps = {
@@ -70,14 +70,14 @@ export function FigmaTopBar({
 type BottomNavigationProps = {
   active: NavDestination;
   onDiscover: () => void;
-  onMission: () => void;
+  onCollection: () => void;
   onProfile?: () => void;
 };
 
 export function FigmaBottomNavigation({
   active,
   onDiscover,
-  onMission,
+  onCollection,
   onProfile,
 }: BottomNavigationProps) {
   const items: Array<{
@@ -87,7 +87,7 @@ export function FigmaBottomNavigation({
     onPress?: () => void;
   }> = [
     { id: 'discover', label: 'Discover', onPress: onDiscover },
-    { id: 'mission', label: 'Mission', icon: 'flag-outline', onPress: onMission },
+    { id: 'collection', label: 'Collection', icon: 'albums-outline', onPress: onCollection },
     { id: 'profile', label: 'Profile', icon: 'person-outline', onPress: onProfile },
   ];
 
@@ -111,7 +111,7 @@ export function FigmaBottomNavigation({
             ) : (
               <Ionicons
                 name={item.icon!}
-                size={24}
+                size={22}
                 color={selected ? colors.blue : colors.muted}
               />
             )}
@@ -402,7 +402,7 @@ export function ProductDiscoverScreen({
       <FigmaBottomNavigation
         active="discover"
         onDiscover={() => undefined}
-        onMission={onCollection}
+        onCollection={onCollection}
         onProfile={onProfile}
       />
     </View>
@@ -865,9 +865,9 @@ export function ProductCollectionScreen({
       </ScrollView>
 
       <FigmaBottomNavigation
-        active="mission"
+        active="collection"
         onDiscover={onDiscover}
-        onMission={() => undefined}
+        onCollection={() => undefined}
         onProfile={onProfile}
       />
     </View>
@@ -878,7 +878,7 @@ type ProductProfileScreenProps = {
   name?: string;
   stats?: string;
   onDiscover: () => void;
-  onMission: () => void;
+  onCollection: () => void;
   onTrophies?: () => void;
 };
 
@@ -886,7 +886,7 @@ export function ProductProfileScreen({
   name = 'Tess',
   stats = '12 discoveries  ·  3 missions completed',
   onDiscover,
-  onMission,
+  onCollection,
   onTrophies,
 }: ProductProfileScreenProps) {
   const [reminders, setReminders] = React.useState(true);
@@ -949,7 +949,7 @@ export function ProductProfileScreen({
       <FigmaBottomNavigation
         active="profile"
         onDiscover={onDiscover}
-        onMission={onMission}
+        onCollection={onCollection}
         onProfile={() => undefined}
       />
     </View>
@@ -1009,9 +1009,9 @@ const styles = StyleSheet.create({
 
   bottomNavigation: {
     width: '100%',
-    height: 88,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    height: 72,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1021,21 +1021,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   navItem: {
-    width: 104,
-    height: 64,
+    width: 88,
+    height: 52,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 10,
+    gap: 3,
+    paddingVertical: 6,
   },
   navItemActive: { backgroundColor: colors.blueSubtle },
-  navBrandIcon: { width: 24, height: 24, resizeMode: 'contain' },
+  navBrandIcon: { width: 22, height: 22, resizeMode: 'contain' },
   navLabel: {
     color: colors.muted,
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
-    lineHeight: 16,
+    lineHeight: 14,
   },
   navLabelActive: { color: colors.blue },
 

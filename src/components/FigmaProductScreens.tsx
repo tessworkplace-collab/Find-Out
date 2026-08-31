@@ -301,37 +301,45 @@ export function ProductOnboardingScreen({
 }: ProductOnboardingScreenProps) {
   return (
     <View style={styles.onboardingScreen}>
-      <View style={styles.onboardingHero}>
+      <ScrollView
+        style={styles.onboardingScroll}
+        contentContainerStyle={styles.onboardingContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Image source={{ uri: ONBOARDING_LOGO_URI }} style={styles.onboardingLogo} />
+
         <Image
           source={{ uri: ONBOARDING_ILLUSTRATION_URI }}
           style={styles.onboardingIllustration}
         />
+
         <View style={styles.onboardingTitleBlock}>
           <Text style={styles.onboardingTitle}>Turn curiosity into a mission.</Text>
           <Text style={styles.onboardingBody}>
             Notice what is missing, investigate the real world, and submit your own discovery.
           </Text>
         </View>
-      </View>
 
-      <Pressable
-        onPress={onStart}
-        style={({ pressed }) => [styles.onboardingPrimary, pressed && styles.pressed]}
-      >
-        <Text style={styles.actionButtonText}>Start exploring</Text>
-      </Pressable>
+        <View style={styles.onboardingActions}>
+          <Pressable
+            onPress={onStart}
+            style={({ pressed }) => [styles.onboardingPrimary, pressed && styles.pressed]}
+          >
+            <Text style={styles.actionButtonText}>Start exploring</Text>
+          </Pressable>
 
-      <Pressable
-        onPress={onHowItWorks}
-        style={({ pressed }) => [styles.onboardingSecondary, pressed && styles.pressed]}
-      >
-        <Text style={styles.actionButtonTextOutline}>How it works</Text>
-      </Pressable>
+          <Pressable
+            onPress={onHowItWorks}
+            style={({ pressed }) => [styles.onboardingSecondary, pressed && styles.pressed]}
+          >
+            <Text style={styles.actionButtonTextOutline}>How it works</Text>
+          </Pressable>
+        </View>
 
-      <Text style={styles.onboardingFooter}>
-        Notice  •  Investigate  •  Submit  •  Reveal
-      </Text>
+        <Text style={styles.onboardingFooter}>
+          Notice  •  Investigate  •  Submit  •  Reveal
+        </Text>
+      </ScrollView>
     </View>
   );
 }
@@ -1124,39 +1132,35 @@ const styles = StyleSheet.create({
     maxWidth: 393,
     alignSelf: 'center',
     backgroundColor: colors.white,
+  },
+  onboardingScroll: {
+    width: '100%',
+  },
+  onboardingContent: {
+    flexGrow: 1,
+    width: '100%',
     paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 24,
-    gap: 12,
+    paddingTop: 20,
+    paddingBottom: 20,
     alignItems: 'center',
   },
-  onboardingHero: {
-    width: '100%',
-    height: 590,
-    position: 'relative',
-  },
   onboardingLogo: {
-    position: 'absolute',
-    left: 0,
-    top: 8,
     width: 216,
     height: 57,
     resizeMode: 'contain',
+    alignSelf: 'flex-start',
   },
   onboardingIllustration: {
-    position: 'absolute',
-    left: 0,
-    top: 84,
     width: '100%',
-    height: 240,
+    height: 239,
     resizeMode: 'contain',
+    marginTop: 20,
   },
   onboardingTitleBlock: {
-    position: 'absolute',
-    left: 18,
-    right: 0,
-    top: 364,
-    gap: 18,
+    width: '100%',
+    paddingLeft: 18,
+    marginTop: 24,
+    gap: 14,
   },
   onboardingTitle: {
     color: colors.ink,
@@ -1166,11 +1170,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.8,
   },
   onboardingBody: {
-    width: 330,
+    width: '100%',
+    maxWidth: 330,
     color: colors.text,
     fontFamily: 'Inter_400Regular',
     fontSize: 16,
     lineHeight: 22,
+  },
+  onboardingActions: {
+    width: '100%',
+    marginTop: 24,
+    gap: 12,
   },
   onboardingPrimary: {
     width: '100%',
@@ -1195,6 +1205,7 @@ const styles = StyleSheet.create({
   onboardingFooter: {
     width: '100%',
     height: 14,
+    marginTop: 14,
     color: colors.muted,
     fontFamily: 'Inter_500Medium',
     fontSize: 10,

@@ -1028,7 +1028,7 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <ProductProfileScreen
           onDiscover={() => setScreen('discover')}
-          onMission={openMyDiscoveries}
+          onCollection={openMyDiscoveries}
         />
       </SafeAreaView>
     );

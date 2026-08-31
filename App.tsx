@@ -693,7 +693,7 @@ function Profile({ go }: { go: (s: Screen) => void }) {
   return (
     <ProductProfileScreen
       onDiscover={() => go('discover')}
-      onMission={() => go('my-discoveries')}
+      onCollection={() => go('my-discoveries')}
       onTrophies={() => go('trophies')}
     />
   );

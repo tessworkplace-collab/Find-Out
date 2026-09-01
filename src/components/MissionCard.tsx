@@ -33,11 +33,19 @@ export default function MissionCard({
 }: MissionCardProps) {
   const isActive = state === 'active';
   const isCompleted = state === 'completed';
-  const progressWidth = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` as DimensionValue;
+  const normalizedProgress = Math.max(0, Math.min(1, progress));
+  const progressWidth = (
+    isCompleted
+      ? '100%'
+      : state === 'default' && normalizedProgress === 0
+        ? 24
+        : `${Math.round(normalizedProgress * 100)}%`
+  ) as DimensionValue;
 
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${title}, ${state}, ${progressLabel}`}
       disabled={!onPress || disabled}
       onPress={onPress}
       style={({ pressed }) => [

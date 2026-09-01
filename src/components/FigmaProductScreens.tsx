@@ -612,6 +612,60 @@ export function ProductEvidencePickerScreen({
   );
 }
 
+type ProductEvidencePreviewScreenProps = {
+  media: React.ReactNode;
+  mediaLabel: string;
+  onBack: () => void;
+  onExit?: () => void;
+  onUse: () => void;
+  onRetake: () => void;
+  statusLabel?: string;
+};
+
+export function ProductEvidencePreviewScreen({
+  media,
+  mediaLabel,
+  onBack,
+  onExit,
+  onUse,
+  onRetake,
+  statusLabel = 'Ready to use',
+}: ProductEvidencePreviewScreenProps) {
+  return (
+    <View style={styles.screen}>
+      <FigmaTopBar
+        title="Review evidence"
+        type="back"
+        onLeading={onBack}
+        onTrailing={onExit}
+      />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.evidenceReviewContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.evidenceReviewTitleBlock}>
+          <Text style={styles.evidenceReviewTitle}>Check your evidence</Text>
+          <Text style={styles.body}>
+            Make sure it clearly shows what you discovered.
+          </Text>
+        </View>
+
+        <View style={styles.evidenceReviewMedia}>
+          <View style={styles.evidenceReviewMediaSlot}>{media}</View>
+          <View style={styles.evidenceReviewBadge}>
+            <Text style={styles.evidenceReviewBadgeText}>{mediaLabel}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.evidenceReviewStatus}>{statusLabel}</Text>
+        <FigmaActionButton label="Use this evidence" onPress={onUse} />
+        <FigmaActionButton label="Retake" onPress={onRetake} outline />
+      </ScrollView>
+    </View>
+  );
+}
+
 type ProductDocumentScreenProps = {
   observation: string;
   location: string;
@@ -1535,6 +1589,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 260,
     borderRadius: radius.lg,
+    borderTopLeftRadius: 0,
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: 'dashed',
@@ -1573,6 +1628,63 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
     lineHeight: 18,
+  },
+
+  evidenceReviewContent: {
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    paddingBottom: 24,
+    gap: 16,
+  },
+  evidenceReviewTitleBlock: {
+    width: '100%',
+    gap: 24,
+  },
+  evidenceReviewTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  evidenceReviewMedia: {
+    width: '100%',
+    height: 342,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
+    backgroundColor: colors.ink,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  evidenceReviewMediaSlot: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  evidenceReviewBadge: {
+    position: 'absolute',
+    left: 16,
+    top: 16,
+    borderRadius: radius.full,
+    backgroundColor: colors.ink,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  evidenceReviewBadgeText: {
+    color: colors.white,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  evidenceReviewStatus: {
+    width: '100%',
+    color: colors.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
 
   documentContent: {

@@ -269,18 +269,15 @@ function BrowseMissionCard({
 function FilterChip({
   label,
   selected = false,
-  wide = false,
 }: {
   label: string;
   selected?: boolean;
-  wide?: boolean;
 }) {
   return (
     <View
       style={[
         styles.filterChip,
         selected && styles.filterChipSelected,
-        wide && styles.filterChipWide,
       ]}
     >
       {selected ? <View style={styles.filterDot} /> : null}
@@ -842,11 +839,6 @@ export function ProductCollectionScreen({
           <Text style={styles.searchPlaceholder}>Search discoveries</Text>
         </View>
 
-        <View style={styles.collectionFilters}>
-          <FilterChip label="All" selected wide />
-          <FilterChip label="City nature" wide />
-        </View>
-
         <MissionCard
           state="active"
           title={activeMissionTitle}
@@ -1338,11 +1330,6 @@ const styles = StyleSheet.create({
     borderColor: colors.blue,
     backgroundColor: colors.blueSubtle,
   },
-  filterChipWide: {
-    width: 140,
-    height: 44,
-    justifyContent: 'flex-start',
-  },
   filterDot: {
     width: 8,
     height: 8,
@@ -1815,7 +1802,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  collectionFilters: { width: '100%', flexDirection: 'row', gap: 8 },
   activeMissionHub: {
     width: '100%',
     height: 154,

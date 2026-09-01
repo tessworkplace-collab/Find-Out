@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
 import { colors, radius } from '../theme';
+import EvidenceCard from './EvidenceCard';
 import MissionCard from './MissionCard';
 
 type TopBarType = 'root' | 'back' | 'close';
@@ -851,20 +852,14 @@ export function ProductCollectionScreen({
         <Text style={styles.completedLabel}>COMPLETED DISCOVERIES</Text>
 
         {visibleEvidence.map((item) => (
-          <Pressable
+          <EvidenceCard
             key={item.id}
-            onPress={() => onEvidence?.(item.id)}
-            style={({ pressed }) => [styles.evidenceListCard, pressed && styles.pressed]}
-          >
-            <View style={styles.evidenceListCopy}>
-              <Text style={styles.evidenceDay}>{item.day}</Text>
-              <Text style={styles.evidenceTitle}>{item.title}</Text>
-              <Text style={styles.evidenceNote}>{item.note}</Text>
-            </View>
-            <View style={styles.evidenceThumbnail}>
-              <Image source={{ uri: BRAND_MARK_URI }} style={styles.evidenceThumbnailMark} />
-            </View>
-          </Pressable>
+            layout="list"
+            day={item.day}
+            title={item.title}
+            note={item.note}
+            onPress={onEvidence ? () => onEvidence(item.id) : undefined}
+          />
         ))}
       </ScrollView>
 
@@ -1854,49 +1849,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 17,
   },
-  evidenceListCard: {
-    width: '100%',
-    height: 120,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
-    borderBottomLeftRadius: radius.lg,
-    backgroundColor: colors.white,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  evidenceListCopy: { flex: 1, height: 88, gap: 4 },
-  evidenceDay: {
-    color: colors.blue,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  evidenceTitle: {
-    color: colors.ink,
-    fontFamily: 'Archivo_600SemiBold',
-    fontSize: 17,
-    lineHeight: 22,
-  },
-  evidenceNote: {
-    color: colors.text,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  evidenceThumbnail: {
-    width: 104,
-    height: 88,
-    borderRadius: radius.lg,
-    backgroundColor: colors.blueSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  evidenceThumbnailMark: { width: 52, height: 52, resizeMode: 'contain' },  profileContent: {
+  profileContent: {
     paddingHorizontal: 24,
     paddingTop: 18,
     paddingBottom: 16,

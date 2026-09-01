@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
 import { colors, radius } from '../theme';
+import MissionCard from './MissionCard';
 
 type TopBarType = 'root' | 'back' | 'close';
 type NavDestination = 'discover' | 'collection' | 'profile';
@@ -371,13 +372,13 @@ export function ProductDiscoverScreen({
         </View>
 
         <SectionLabel>FEATURED MISSION</SectionLabel>
-        <BrowseMissionCard
-          difficulty="EASY"
+        <MissionCard
+          state="default"
+          category="ODD DETAILS"
           title="Why Is This Here?"
           description="An ordinary setting contains something that seems out of place."
-          action="OPEN FEATURED MISSION →"
-          number="03"
-          featured
+          progressLabel="0 of 1 discoveries"
+          progress={0}
           onPress={onOpenFeatured}
         />
 
@@ -389,13 +390,22 @@ export function ProductDiscoverScreen({
           <FilterChip label="Hard" />
         </View>
 
-        <BrowseMissionCard
-          difficulty="MEDIUM"
-          title="Dead Link"
-          description="A place still exists online, but reality may have moved on."
-          action="OPEN MISSION →"
-          number="01"
+        <MissionCard
+          state="active"
+          title="A sound you know"
+          description="Keep investigating—one discovery left."
+          progressLabel="2 of 3 discoveries"
+          progress={2 / 3}
           onPress={onOpenMission}
+        />
+
+        <MissionCard
+          state="completed"
+          title="Dead Link"
+          description="Mission complete. Your discovery is saved."
+          progressLabel="3 of 3 discoveries"
+          progress={1}
+          onPress={onCollection}
         />
       </ScrollView>
 
@@ -800,6 +810,11 @@ export function ProductCollectionScreen({
   onProfile,
 }: ProductCollectionScreenProps) {
   const visibleEvidence = evidence.length > 0 ? evidence.slice(0, 2) : defaultCollectionEvidence;
+  const activeMissionFound = Math.min(visibleEvidence.length, 2);
+  const activeMissionRemaining = 3 - activeMissionFound;
+  const activeMissionProgressCopy = `Keep investigating—${activeMissionRemaining} ${
+    activeMissionRemaining === 1 ? 'discovery' : 'discoveries'
+  } left.`;
 
   return (
     <View style={styles.screen}>
@@ -832,19 +847,16 @@ export function ProductCollectionScreen({
           <FilterChip label="City nature" wide />
         </View>
 
-        <View style={styles.activeMissionHub}>
-          <Text style={styles.activeMissionEyebrow}>ACTIVE MISSION</Text>
-          <Text style={styles.activeMissionTitle}>{activeMissionTitle}</Text>
-          <Text style={styles.activeMissionMeta}>Investigate · In progress</Text>
-          <Pressable
-            onPress={onContinue}
-            style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.continueButtonText}>Continue mission</Text>
-          </Pressable>
-        </View>
+        <MissionCard
+          state="active"
+          title={activeMissionTitle}
+          description={activeMissionProgressCopy}
+          progressLabel={`${activeMissionFound} of 3 discoveries`}
+          progress={activeMissionFound / 3}
+          onPress={onContinue}
+        />
 
-        <Text style={styles.completedLabel}>COMPLETED</Text>
+        <Text style={styles.completedLabel}>COMPLETED DISCOVERIES</Text>
 
         {visibleEvidence.map((item) => (
           <Pressable

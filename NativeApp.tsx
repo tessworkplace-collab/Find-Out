@@ -919,6 +919,7 @@ export default function NativeApp() {
           onChangeLocation={setLocation}
           onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
           onExit={exitMissionToHome}
+          onDiscard={resetMission}
           onSubmit={submitDiscovery}
           onStepPress={goToStep}
           maxStep={highestStep}

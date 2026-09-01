@@ -975,8 +975,17 @@ export function ProductCollectionScreen({
   onDiscover,
   onProfile,
 }: ProductCollectionScreenProps) {
-  const visibleEvidence = evidence.length > 0 ? evidence.slice(0, 2) : defaultCollectionEvidence;
-  const activeMissionFound = Math.min(visibleEvidence.length, 2);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const collectionEvidence = evidence.length > 0 ? evidence.slice(0, 2) : defaultCollectionEvidence;
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const visibleEvidence = collectionEvidence.filter((item) =>
+    normalizedQuery.length === 0
+      ? true
+      : [item.title, item.note, item.day].some((value) =>
+          value.toLocaleLowerCase().includes(normalizedQuery),
+        ),
+  );
+  const activeMissionFound = Math.min(collectionEvidence.length, 2);
   const activeMissionRemaining = 3 - activeMissionFound;
   const activeMissionProgressCopy = `Keep investigating—${activeMissionRemaining} ${
     activeMissionRemaining === 1 ? 'discovery' : 'discoveries'
@@ -995,7 +1004,7 @@ export function ProductCollectionScreen({
           <View style={styles.discoveryCount}>
             <View style={styles.discoveryCountRow}>
               <Text style={styles.discoveryCountValue}>
-                {String(visibleEvidence.length).padStart(2, '0')}
+                {String(collectionEvidence.length).padStart(2, '0')}
               </Text>
               <View style={styles.discoveryCountDot} />
             </View>
@@ -1005,7 +1014,28 @@ export function ProductCollectionScreen({
 
         <View style={styles.searchField}>
           <Ionicons name="search-outline" size={20} color={colors.ink} />
-          <Text style={styles.searchPlaceholder}>Search discoveries</Text>
+          <TextInput
+            accessibilityLabel="Search discoveries"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setSearchQuery}
+            placeholder="Search discoveries"
+            placeholderTextColor={colors.muted}
+            returnKeyType="search"
+            style={styles.searchInput}
+            value={searchQuery}
+          />
+          {searchQuery.length > 0 ? (
+            <Pressable
+              accessibilityLabel="Clear discovery search"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => setSearchQuery('')}
+              style={({ pressed }) => [styles.searchClear, pressed && styles.pressed]}
+            >
+              <Ionicons name="close-circle" size={20} color={colors.muted} />
+            </Pressable>
+          ) : null}
         </View>
 
         <MissionCard
@@ -1019,17 +1049,26 @@ export function ProductCollectionScreen({
 
         <Text style={styles.completedLabel}>COMPLETED DISCOVERIES</Text>
 
-        {visibleEvidence.map((item) => (
-          <EvidenceCard
-            key={item.id}
-            layout="list"
-            day={item.day}
-            title={item.title}
-            note={item.note}
-            mediaUri={item.mediaUri}
-            onPress={onEvidence ? () => onEvidence(item.id) : undefined}
-          />
-        ))}
+        {visibleEvidence.length > 0 ? (
+          visibleEvidence.map((item) => (
+            <EvidenceCard
+              key={item.id}
+              layout="list"
+              day={item.day}
+              title={item.title}
+              note={item.note}
+              mediaUri={item.mediaUri}
+              onPress={onEvidence ? () => onEvidence(item.id) : undefined}
+            />
+          ))
+        ) : (
+          <View style={styles.collectionSearchEmpty}>
+            <Text style={styles.collectionSearchEmptyTitle}>No matching discoveries</Text>
+            <Text style={styles.collectionSearchEmptyBody}>
+              Try a different title, note, or date.
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       <FigmaBottomNavigation
@@ -2121,8 +2160,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  searchPlaceholder: {
+  searchInput: {
     flex: 1,
+    height: 46,
+    paddingVertical: 0,
+    color: colors.ink,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  searchClear: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collectionSearchEmpty: {
+    width: '100%',
+    minHeight: 112,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.white,
+  },
+  collectionSearchEmptyTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  collectionSearchEmptyBody: {
     color: colors.muted,
     fontFamily: 'Inter_400Regular',
     fontSize: 15,

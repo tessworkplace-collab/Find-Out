@@ -270,24 +270,36 @@ function BrowseMissionCard({
 function FilterChip({
   label,
   selected = false,
+  onPress,
 }: {
-  label: string;
+  label: MissionFilter;
   selected?: boolean;
+  onPress: () => void;
 }) {
   return (
-    <View
-      style={[
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`Show ${label.toLowerCase()} difficulty missions`}
+      onPress={onPress}
+      style={({ pressed }) => [
         styles.filterChip,
         selected && styles.filterChipSelected,
+        pressed && styles.pressed,
       ]}
     >
       {selected ? <View style={styles.filterDot} /> : null}
       <Text style={[styles.filterText, selected && styles.filterTextSelected]}>
         {label}
       </Text>
-    </View>
+    </Pressable>
   );
 }
+
+type MissionDifficulty = 'Easy' | 'Medium' | 'Hard';
+type MissionFilter = 'All' | MissionDifficulty;
+
+const missionFilters: MissionFilter[] = ['All', 'Easy', 'Medium', 'Hard'];
 
 type ProductOnboardingScreenProps = {
   onStart: () => void;
@@ -356,6 +368,42 @@ export function ProductDiscoverScreen({
   onCollection,
   onProfile,
 }: ProductDiscoverScreenProps) {
+  const [selectedFilter, setSelectedFilter] = React.useState<MissionFilter>('All');
+  const missions: Array<{
+    id: string;
+    difficulty: MissionDifficulty;
+    state: 'active' | 'completed';
+    title: string;
+    description: string;
+    progressLabel: string;
+    progress: number;
+    onPress: () => void;
+  }> = [
+    {
+      id: 'sound-01',
+      difficulty: 'Medium',
+      state: 'active',
+      title: 'A sound you know',
+      description: 'Keep investigating—one discovery left.',
+      progressLabel: '2 of 3 discoveries',
+      progress: 2 / 3,
+      onPress: onOpenMission,
+    },
+    {
+      id: 'dead-link-01',
+      difficulty: 'Medium',
+      state: 'completed',
+      title: 'Dead Link',
+      description: 'Mission complete. Your discovery is saved.',
+      progressLabel: '3 of 3 discoveries',
+      progress: 1,
+      onPress: onCollection,
+    },
+  ];
+  const visibleMissions = missions.filter(
+    (mission) => selectedFilter === 'All' || mission.difficulty === selectedFilter,
+  );
+
   return (
     <View style={styles.screen}>
       <FigmaTopBar title="FIND OUT" type="root" onTrailing={onProfile} />
@@ -382,29 +430,36 @@ export function ProductDiscoverScreen({
 
         <SectionLabel>EXPLORE MISSIONS</SectionLabel>
         <View style={styles.filterRow}>
-          <FilterChip label="All" selected />
-          <FilterChip label="Easy" />
-          <FilterChip label="Medium" />
-          <FilterChip label="Hard" />
+          {missionFilters.map((filter) => (
+            <FilterChip
+              key={filter}
+              label={filter}
+              selected={selectedFilter === filter}
+              onPress={() => setSelectedFilter(filter)}
+            />
+          ))}
         </View>
 
-        <MissionCard
-          state="active"
-          title="A sound you know"
-          description="Keep investigating—one discovery left."
-          progressLabel="2 of 3 discoveries"
-          progress={2 / 3}
-          onPress={onOpenMission}
-        />
-
-        <MissionCard
-          state="completed"
-          title="Dead Link"
-          description="Mission complete. Your discovery is saved."
-          progressLabel="3 of 3 discoveries"
-          progress={1}
-          onPress={onCollection}
-        />
+        {visibleMissions.length > 0 ? (
+          visibleMissions.map((mission) => (
+            <MissionCard
+              key={mission.id}
+              state={mission.state}
+              title={mission.title}
+              description={mission.description}
+              progressLabel={mission.progressLabel}
+              progress={mission.progress}
+              onPress={mission.onPress}
+            />
+          ))
+        ) : (
+          <View style={styles.emptyFilterState}>
+            <Text style={styles.emptyFilterTitle}>No {selectedFilter.toLowerCase()} missions yet</Text>
+            <Text style={styles.emptyFilterBody}>
+              Try another difficulty or choose All to see every available mission.
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       <FigmaBottomNavigation
@@ -1452,6 +1507,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   filterTextSelected: { color: colors.blue },
+  emptyFilterState: {
+    width: '100%',
+    minHeight: 112,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.white,
+  },
+  emptyFilterTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  emptyFilterBody: {
+    color: colors.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
 
   missionDetailContent: {
     paddingHorizontal: 24,

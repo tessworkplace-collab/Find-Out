@@ -958,6 +958,7 @@ export default function NativeApp() {
             day: index === 0 ? 'TODAY' : 'EARLIER',
             title: item.missionTitle,
             note: item.observation,
+            mediaUri: item.evidence.type === 'photo' ? item.evidence.uri : undefined,
           }))}
           onContinue={() => setScreen('investigate')}
           onEvidence={() => {

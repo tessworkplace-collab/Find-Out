@@ -927,7 +927,13 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
+  safe: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 393,
+    alignSelf: 'center',
+    backgroundColor: colors.white,
+  },
   screen: { flex: 1, backgroundColor: colors.white },
 
   topBar: {

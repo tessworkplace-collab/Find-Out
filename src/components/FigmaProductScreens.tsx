@@ -977,7 +977,7 @@ function PreferenceRow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  screen: { flex: 1, width: '100%', maxWidth: 393, alignSelf: 'center', backgroundColor: colors.white },
+  screen: { flex: 1, width: '100%', backgroundColor: colors.white },
   pressed: { opacity: 0.78 },
 
   topBar: {
@@ -1009,25 +1009,24 @@ const styles = StyleSheet.create({
 
   bottomNavigation: {
     width: '100%',
-    height: 72,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    height: 60,
+    paddingHorizontal: 24,
+    paddingVertical: 6,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   navItem: {
     width: 88,
-    height: 52,
+    height: 48,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 6,
+    gap: 2,
+    paddingVertical: 4,
   },
   navItemActive: { backgroundColor: colors.blueSubtle },
   navBrandIcon: { width: 22, height: 22, resizeMode: 'contain' },

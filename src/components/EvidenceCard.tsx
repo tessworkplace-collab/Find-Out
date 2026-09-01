@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { BRAND_MARK_URI } from '../brand';
 import { colors, radius } from '../theme';
+import EvidenceVisual from './EvidenceVisual';
 
 export type EvidenceCardLayout = 'grid' | 'list';
 
@@ -30,15 +31,18 @@ export default function EvidenceCard({
 }: EvidenceCardProps) {
   const isList = layout === 'list';
 
-  const media = (
+  const media = mediaUri ? (
     <View style={[styles.media, isList ? styles.mediaList : styles.mediaGrid]}>
+      <Image source={{ uri: mediaUri }} resizeMode="cover" style={styles.capturedMedia} />
+    </View>
+  ) : isList ? (
+    <EvidenceVisual size="thumbnail" />
+  ) : (
+    <View style={[styles.media, styles.mediaGrid]}>
       <Image
-        source={{ uri: mediaUri || BRAND_MARK_URI }}
-        resizeMode={mediaUri ? 'cover' : 'contain'}
-        style={[
-          mediaUri ? styles.capturedMedia : styles.placeholderMark,
-          !mediaUri && (isList ? styles.placeholderMarkList : styles.placeholderMarkGrid),
-        ]}
+        source={{ uri: BRAND_MARK_URI }}
+        resizeMode="contain"
+        style={styles.placeholderMarkGrid}
       />
     </View>
   );
@@ -147,13 +151,6 @@ const styles = StyleSheet.create({
   capturedMedia: {
     width: '100%',
     height: '100%',
-  },
-  placeholderMark: {
-    resizeMode: 'contain',
-  },
-  placeholderMarkList: {
-    width: 52,
-    height: 52,
   },
   placeholderMarkGrid: {
     width: 40,

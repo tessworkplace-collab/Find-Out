@@ -773,6 +773,7 @@ export type CollectionEvidence = {
   day: string;
   title: string;
   note: string;
+  mediaUri?: string;
 };
 
 type ProductCollectionScreenProps = {
@@ -858,6 +859,7 @@ export function ProductCollectionScreen({
             day={item.day}
             title={item.title}
             note={item.note}
+            mediaUri={item.mediaUri}
             onPress={onEvidence ? () => onEvidence(item.id) : undefined}
           />
         ))}

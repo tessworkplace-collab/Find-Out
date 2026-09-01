@@ -673,6 +673,7 @@ type ProductDocumentScreenProps = {
   onChangeLocation: (value: string) => void;
   onBack: () => void;
   onExit?: () => void;
+  onDiscard?: () => void;
   onSubmit: () => void;
   onStepPress?: (index: number) => void;
   maxStep?: number;
@@ -687,15 +688,35 @@ export function ProductDocumentScreen({
   onChangeLocation,
   onBack,
   onExit,
+  onDiscard,
   onSubmit,
   onStepPress,
   maxStep = 2,
   submitLabel = 'Submit discovery',
   submitDisabled = false,
 }: ProductDocumentScreenProps) {
+  const [showExitConfirmation, setShowExitConfirmation] = React.useState(false);
+  const observationMissing = observation.trim().length === 0;
+  const isSubmitDisabled = submitDisabled || observationMissing;
+
+  const requestExit = onExit ? () => setShowExitConfirmation(true) : undefined;
+  const leaveDraft = () => {
+    setShowExitConfirmation(false);
+    onExit?.();
+  };
+  const discardDraft = () => {
+    setShowExitConfirmation(false);
+    (onDiscard || onExit)?.();
+  };
+
   return (
     <View style={styles.screen}>
-      <FigmaTopBar title="Document" type="back" onLeading={onBack} onTrailing={onExit} />
+      <FigmaTopBar
+        title="Document"
+        type="back"
+        onLeading={onBack}
+        onTrailing={requestExit}
+      />
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.documentContent}
@@ -716,17 +737,20 @@ export function ProductDocumentScreen({
         <View style={styles.formField}>
           <Text style={styles.formLabel}>Observation</Text>
           <TextInput
-            multiline
+            accessibilityLabel="Observation"
             value={observation}
             onChangeText={onChangeObservation}
-            style={styles.formInput}
+            style={[styles.formInput, observationMissing && styles.formInputError]}
           />
-          <Text style={styles.formHelper}>Saved as draft</Text>
+          <Text style={[styles.formHelper, observationMissing && styles.formHelperError]}>
+            {observationMissing ? 'Add a short observation' : 'Saved as draft'}
+          </Text>
         </View>
 
         <View style={styles.formField}>
           <Text style={styles.formLabel}>Location</Text>
           <TextInput
+            accessibilityLabel="Location"
             value={location}
             onChangeText={onChangeLocation}
             placeholder="Where did you find it?"
@@ -747,17 +771,51 @@ export function ProductDocumentScreen({
         </View>
 
         <Pressable
-          disabled={submitDisabled}
+          disabled={isSubmitDisabled}
           onPress={onSubmit}
           style={({ pressed }) => [
             styles.actionButton,
-            submitDisabled && styles.disabled,
-            pressed && !submitDisabled && styles.pressed,
+            isSubmitDisabled && styles.disabled,
+            pressed && !isSubmitDisabled && styles.pressed,
           ]}
         >
           <Text style={styles.actionButtonText}>{submitLabel}</Text>
         </Pressable>
       </ScrollView>
+
+      {showExitConfirmation ? (
+        <View style={styles.confirmationOverlay}>
+          <Pressable
+            accessibilityLabel="Keep editing"
+            onPress={() => setShowExitConfirmation(false)}
+            style={styles.confirmationScrim}
+          />
+          <View style={styles.confirmationSheet}>
+            <View style={styles.confirmationHandle} />
+            <Text style={styles.confirmationTitle}>Leave this draft?</Text>
+            <Text style={styles.confirmationMessage}>
+              Your observation has been saved locally. Choose what should happen before you leave.
+            </Text>
+            <View style={styles.confirmationStatus}>
+              <Text style={styles.confirmationStatusText}>Draft saved on this device</Text>
+            </View>
+            <View style={styles.confirmationActions}>
+              <FigmaActionButton
+                label="Keep editing"
+                onPress={() => setShowExitConfirmation(false)}
+              />
+              <FigmaActionButton
+                label="Save draft & leave"
+                onPress={leaveDraft}
+                outline
+              />
+            </View>
+            <Pressable onPress={discardDraft} style={styles.confirmationDiscard}>
+              <Text style={styles.confirmationDiscardText}>Discard draft</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1729,6 +1787,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
   },
+  formInputError: {
+    borderColor: colors.danger,
+  },
+  formHelperError: {
+    color: colors.danger,
+  },
   evidenceBanner: {
     width: '100%',
     height: 72,
@@ -1754,6 +1818,81 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   disabled: { opacity: 0.45 },
+  confirmationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    justifyContent: 'flex-end',
+  },
+  confirmationScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(17, 19, 24, 0.42)',
+  },
+  confirmationSheet: {
+    width: '100%',
+    height: 340,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: colors.white,
+    paddingHorizontal: 24,
+    paddingTop: 38,
+    overflow: 'hidden',
+  },
+  confirmationHandle: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+  },
+  confirmationTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  confirmationMessage: {
+    height: 44,
+    marginTop: 8,
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  confirmationStatus: {
+    width: '100%',
+    height: 42,
+    marginTop: 14,
+    borderRadius: 10,
+    backgroundColor: colors.border,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  confirmationStatusText: {
+    color: colors.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  confirmationActions: {
+    width: '100%',
+    marginTop: 16,
+    gap: 10,
+  },
+  confirmationDiscard: {
+    width: '100%',
+    height: 20,
+    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmationDiscardText: {
+    color: colors.danger,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    lineHeight: 20,
+  },
 
   completeContent: {
     paddingHorizontal: 24,

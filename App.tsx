@@ -558,6 +558,8 @@ function Document({
       onChangeObservation={setObs}
       onChangeLocation={setLoc}
       onBack={back}
+      onExit={() => go('discover')}
+      onDiscard={() => go('discover')}
       onSubmit={() => go('mission-complete')}
     />
   );

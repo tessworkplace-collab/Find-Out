@@ -61,6 +61,7 @@ import {
   ProductDiscoverScreen,
   ProductDocumentScreen,
   ProductEvidencePickerScreen,
+  ProductEvidencePreviewScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
   ProductProfileScreen,
@@ -256,24 +257,18 @@ function formatDuration(ms = 0) {
   return `${minutes}:${seconds}`;
 }
 
-function VideoEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs?: number }) {
+function VideoEvidencePreview({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, videoPlayer => {
     videoPlayer.loop = false;
   });
 
   return (
-    <View style={styles.mediaReviewWrap}>
-      <VideoView
-        player={player}
-        style={styles.previewVideo}
-        nativeControls
-        contentFit="contain"
-      />
-      <View style={styles.mediaMetaRow}>
-        <Ionicons name="videocam-outline" size={18} color={colors.blue} />
-        <AppText style={styles.mediaMeta}>Video · {formatDuration(durationMs)}</AppText>
-      </View>
-    </View>
+    <VideoView
+      player={player}
+      style={styles.previewVideo}
+      nativeControls
+      contentFit="contain"
+    />
   );
 }
 
@@ -299,14 +294,14 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
   return (
     <View style={styles.audioReviewCard}>
       <View style={styles.audioReviewIcon}>
-        <Ionicons name="mic-outline" size={34} color={colors.blue} />
+        <Ionicons name="mic-outline" size={34} color={colors.white} />
       </View>
       <View style={styles.waveform}>
         {[18, 34, 24, 48, 30, 42, 20, 36, 26, 44, 22].map((height, index) => (
           <View key={index} style={[styles.waveBar, { height }]} />
         ))}
       </View>
-      <AppText style={styles.timer}>
+      <AppText style={[styles.timer, styles.previewTimer]}>
         {formatDuration(currentMs)} / {formatDuration(totalMs)}
       </AppText>
       <Pressable onPress={togglePlayback} style={styles.playButton}>
@@ -884,34 +879,32 @@ export default function NativeApp() {
   if (screen === 'capture') return renderCapture();
 
   if (screen === 'preview' && evidence) {
+    const mediaLabel =
+      evidence.type === 'photo'
+        ? 'PHOTO'
+        : evidence.type === 'video'
+          ? `VIDEO · ${formatDuration(evidence.durationMs ?? 0)}`
+          : `AUDIO · ${formatDuration(evidence.durationMs ?? 0)}`;
+
+    const media =
+      evidence.type === 'photo' ? (
+        <Image source={{ uri: evidence.uri }} style={styles.previewImage} />
+      ) : evidence.type === 'video' ? (
+        <VideoEvidencePreview uri={evidence.uri} />
+      ) : (
+        <AudioEvidencePreview uri={evidence.uri} durationMs={evidence.durationMs} />
+      );
+
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Review evidence"
+        <ProductEvidencePreviewScreen
+          media={media}
+          mediaLabel={mediaLabel}
           onBack={() => setScreen('capture')}
           onExit={exitMissionToHome}
+          onUse={() => setScreen('document')}
+          onRetake={() => setScreen('capture')}
         />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={1} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.h1}>Check your evidence</AppText>
-          <AppText style={styles.body}>
-            Play it back or review it before you continue to your field note.
-          </AppText>
-
-          {evidence.type === 'photo' ? (
-            <View style={styles.previewPanel}>
-              <Image source={{ uri: evidence.uri }} style={styles.previewImage} />
-            </View>
-          ) : evidence.type === 'video' ? (
-            <VideoEvidencePreview uri={evidence.uri} durationMs={evidence.durationMs} />
-          ) : (
-            <AudioEvidencePreview uri={evidence.uri} durationMs={evidence.durationMs} />
-          )}
-
-          <AppText style={styles.centerMeta}>Saved locally on this device for this draft.</AppText>
-          <PrimaryButton label="Use this evidence" onPress={() => setScreen('document')} />
-          <PrimaryButton outline label="Retake" onPress={() => setScreen('capture')} />
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -1227,40 +1220,36 @@ const styles = StyleSheet.create({
   waveBar: { width: 4, borderRadius: 2, backgroundColor: colors.blue },
   timer: { fontFamily: 'Inter_700Bold', fontSize: 20 },
   centerMeta: { ...typography.small, color: colors.muted, textAlign: 'center' },
-  previewPanel: {
-    minHeight: 360,
-    borderRadius: radius.lg,
-    backgroundColor: colors.soft,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewImage: { width: '100%', height: 360, resizeMode: 'contain', backgroundColor: colors.soft },
-  mediaReviewWrap: { gap: 12 },
-  previewVideo: {
+  previewImage: {
     width: '100%',
-    height: 360,
-    borderRadius: radius.lg,
+    height: '100%',
+    resizeMode: 'contain',
     backgroundColor: colors.ink,
   },
-  mediaMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  mediaMeta: { ...typography.label, color: colors.text },
+  previewVideo: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.ink,
+  },
   audioReviewCard: {
-    minHeight: 330,
-    borderRadius: radius.lg,
-    backgroundColor: colors.soft,
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 22,
+    gap: 18,
     padding: 24,
   },
   audioReviewIcon: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.blueSubtle,
+    backgroundColor: '#34353C',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  previewTimer: {
+    color: colors.white,
   },
   playButton: {
     minHeight: 48,

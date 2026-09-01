@@ -771,7 +771,7 @@ function EvidenceDetail({
           <AppText style={styles.pillText}>SAVED</AppText>
         </View>
 
-        <TitleBlock title="The place has changed" body="CITY NATURE · TODAY" />
+        <TitleBlock title="The place has changed" body="TODAY" />
 
         <View style={styles.evidenceDetailVisual}>
           <Image source={brandMark} style={{ width: 92, height: 92 }} />

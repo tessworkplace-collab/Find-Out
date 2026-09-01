@@ -6,6 +6,7 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -53,6 +54,7 @@ import {
   addCompletedDiscovery,
   CompletedDiscovery,
   loadCompletedDiscoveries,
+  updateCompletedDiscovery,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
 import {
@@ -60,11 +62,13 @@ import {
   ProductCompleteScreen,
   ProductDiscoverScreen,
   ProductDocumentScreen,
+  ProductEvidenceDetailScreen,
   ProductEvidencePickerScreen,
   ProductEvidencePreviewScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
   ProductProfileScreen,
+  ProductTrophiesScreen,
 } from './src/components/FigmaProductScreens';
 
 type Screen =
@@ -77,9 +81,21 @@ type Screen =
   | 'document'
   | 'complete'
   | 'discoveries'
-  | 'profile';
+  | 'profile'
+  | 'trophies'
+  | 'discovery-detail';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
+
+const MISSION_DRAFT_SCREENS: Screen[] = [
+  'mission',
+  'investigate',
+  'evidence',
+  'capture',
+  'preview',
+  'document',
+  'complete',
+];
 
 type Evidence = {
   type: CaptureMode;
@@ -332,6 +348,10 @@ export default function NativeApp() {
   const [location, setLocation] = useState('');
   const [draftReady, setDraftReady] = useState(false);
   const [discoveries, setDiscoveries] = useState<CompletedDiscovery[]>([]);
+  const [selectedDiscovery, setSelectedDiscovery] = useState<CompletedDiscovery | null>(null);
+  const [editingDiscoveryId, setEditingDiscoveryId] = useState<string | null>(null);
+  const [editingObservation, setEditingObservation] = useState('');
+  const [editingLocation, setEditingLocation] = useState('');
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
 
   const cameraRef = useRef<CameraView | null>(null);
@@ -351,6 +371,11 @@ export default function NativeApp() {
       try {
         const draft = await loadDraft();
         if (!mounted || !draft) return;
+
+        if (!MISSION_DRAFT_SCREENS.includes(draft.screen as Screen)) {
+          await clearDraft().catch(() => undefined);
+          return;
+        }
 
         const restoredEvidence = draft.evidence as Evidence | null;
         const restoredScreen: Screen =
@@ -392,14 +417,8 @@ export default function NativeApp() {
       return;
     }
 
-    const hasProgress =
-      screen !== 'discover' ||
-      highestStep > 0 ||
-      Boolean(evidence) ||
-      location.length > 0 ||
-      observation !== DEFAULT_OBSERVATION;
-
-    if (!hasProgress) return;
+    // Browsing saved work must never replace the user's active mission draft.
+    if (editingDiscoveryId || !MISSION_DRAFT_SCREENS.includes(screen)) return;
 
     const restorableScreen =
       screen === 'capture' || screen === 'preview'
@@ -430,6 +449,7 @@ export default function NativeApp() {
     submitted,
     observation,
     location,
+    editingDiscoveryId,
   ]);
 
   useEffect(() => {
@@ -689,11 +709,62 @@ export default function NativeApp() {
     setScreen('discoveries');
   };
 
+  const openDiscoveryDetail = (id: string) => {
+    const selected = discoveries.find(item => item.id === id);
+    if (!selected) return;
+    setSelectedDiscovery(selected);
+    setScreen('discovery-detail');
+  };
+
+  const editSelectedDiscovery = () => {
+    if (!selectedDiscovery) return;
+    setEditingDiscoveryId(selectedDiscovery.id);
+    setEditingObservation(selectedDiscovery.observation);
+    setEditingLocation(selectedDiscovery.location);
+    setScreen('document');
+  };
+
+  const cancelEditingDiscovery = () => {
+    setEditingDiscoveryId(null);
+    setEditingObservation('');
+    setEditingLocation('');
+    setScreen('discovery-detail');
+  };
+
+  const shareSelectedDiscovery = async () => {
+    if (!selectedDiscovery) return;
+    try {
+      await Share.share({
+        message: `${selectedDiscovery.missionTitle}\n\n${selectedDiscovery.observation}`,
+      });
+    } catch {
+      Alert.alert('Could not share discovery', 'Please try the share button again.');
+    }
+  };
+
   const submitDiscovery = async () => {
-    if (!evidence || submittingDiscovery) return;
+    if (submittingDiscovery || (!editingDiscoveryId && !evidence)) return;
 
     setSubmittingDiscovery(true);
     try {
+      if (editingDiscoveryId) {
+        const updated = await updateCompletedDiscovery(editingDiscoveryId, {
+          observation: editingObservation,
+          location: editingLocation,
+        });
+        setDiscoveries(current =>
+          current.map(item => (item.id === updated.id ? updated : item)),
+        );
+        setSelectedDiscovery(updated);
+        setEditingDiscoveryId(null);
+        setEditingObservation('');
+        setEditingLocation('');
+        setScreen('discovery-detail');
+        return;
+      }
+
+      if (!evidence) return;
+
       const completed = await addCompletedDiscovery({
         missionId: activeMission.id,
         missionTitle: activeMission.title,
@@ -878,6 +949,39 @@ export default function NativeApp() {
 
   if (screen === 'capture') return renderCapture();
 
+  if (screen === 'discovery-detail' && selectedDiscovery) {
+    const selectedIndex = discoveries.findIndex(item => item.id === selectedDiscovery.id);
+    const day = selectedIndex <= 0 ? 'TODAY' : 'EARLIER';
+    const media =
+      selectedDiscovery.evidence.type === 'photo' ? (
+        <Image
+          source={{ uri: selectedDiscovery.evidence.uri }}
+          style={styles.previewImage}
+        />
+      ) : selectedDiscovery.evidence.type === 'video' ? (
+        <VideoEvidencePreview uri={selectedDiscovery.evidence.uri} />
+      ) : (
+        <AudioEvidencePreview
+          uri={selectedDiscovery.evidence.uri}
+          durationMs={selectedDiscovery.evidence.durationMs}
+        />
+      );
+
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ProductEvidenceDetailScreen
+          title={selectedDiscovery.missionTitle}
+          day={day}
+          note={selectedDiscovery.observation}
+          media={media}
+          onBack={() => setScreen('discoveries')}
+          onEdit={editSelectedDiscovery}
+          onShare={() => void shareSelectedDiscovery()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   if (screen === 'preview' && evidence) {
     const mediaLabel =
       evidence.type === 'photo'
@@ -910,21 +1014,41 @@ export default function NativeApp() {
   }
 
   if (screen === 'document') {
+    const editingDiscovery = Boolean(editingDiscoveryId);
     return (
       <SafeAreaView style={styles.safe}>
         <ProductDocumentScreen
-          observation={observation}
-          location={location}
-          onChangeObservation={setObservation}
-          onChangeLocation={setLocation}
-          onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
-          onExit={exitMissionToHome}
-          onDiscard={resetMission}
+          observation={editingDiscovery ? editingObservation : observation}
+          location={editingDiscovery ? editingLocation : location}
+          onChangeObservation={
+            editingDiscovery ? setEditingObservation : setObservation
+          }
+          onChangeLocation={editingDiscovery ? setEditingLocation : setLocation}
+          onBack={
+            editingDiscovery
+              ? cancelEditingDiscovery
+              : () => setScreen(evidence ? 'preview' : 'investigate')
+          }
+          onExit={editingDiscovery ? undefined : exitMissionToHome}
+          onDiscard={editingDiscovery ? undefined : resetMission}
           onSubmit={submitDiscovery}
-          onStepPress={goToStep}
-          maxStep={highestStep}
-          submitLabel={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
-          submitDisabled={!evidence || submittingDiscovery}
+          onStepPress={editingDiscovery ? undefined : goToStep}
+          maxStep={editingDiscovery ? 2 : highestStep}
+          submitLabel={
+            submittingDiscovery
+              ? editingDiscovery
+                ? 'Saving changes…'
+                : 'Saving discovery…'
+              : editingDiscovery
+                ? 'Save changes'
+                : 'Submit discovery'
+          }
+          submitDisabled={
+            submittingDiscovery ||
+            (editingDiscovery
+              ? editingObservation.trim().length === 0
+              : !evidence)
+          }
         />
       </SafeAreaView>
     );
@@ -955,9 +1079,7 @@ export default function NativeApp() {
             mediaUri: item.evidence.type === 'photo' ? item.evidence.uri : undefined,
           }))}
           onContinue={() => setScreen('investigate')}
-          onEvidence={() => {
-            if (evidence) setScreen('preview');
-          }}
+          onEvidence={openDiscoveryDetail}
           onDiscover={() => setScreen('discover')}
           onProfile={() => setScreen('profile')}
         />
@@ -1022,6 +1144,19 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductProfileScreen
+          onDiscover={() => setScreen('discover')}
+          onCollection={openMyDiscoveries}
+          onTrophies={() => setScreen('trophies')}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'trophies') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ProductTrophiesScreen
+          onBack={() => setScreen('profile')}
           onDiscover={() => setScreen('discover')}
           onCollection={openMyDiscoveries}
         />

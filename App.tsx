@@ -27,16 +27,20 @@ import { activeMission, nextMission, otherDiscoveries, yourDiscovery } from './s
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
 import {
+  CollectionEvidence,
+  DEFAULT_COLLECTION_EVIDENCE,
   ProductCollectionScreen,
   ProductCompleteScreen,
   ProductDiscoverScreen,
   ProductDocumentScreen,
+  ProductEvidenceDetailScreen,
   ProductEvidencePickerScreen,
   ProductEvidencePreviewScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
   ProductOnboardingScreen,
   ProductProfileScreen,
+  ProductTrophiesScreen,
 } from './src/components/FigmaProductScreens';
 
 type Screen =
@@ -544,12 +548,21 @@ function EvidencePreview({
 function Document({
   go,
   back,
+  initialObservation = yourDiscovery.observation,
+  editing = false,
+  onCancel,
+  onSave,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  initialObservation?: string;
+  editing?: boolean;
+  onCancel?: () => void;
+  onSave?: (observation: string) => void;
 }) {
-  const [obs, setObs] = useState(yourDiscovery.observation);
+  const [obs, setObs] = useState(initialObservation);
   const [loc, setLoc] = useState('');
+  const cancel = onCancel ?? (() => go('discover'));
 
   return (
     <ProductDocumentScreen
@@ -557,10 +570,11 @@ function Document({
       location={loc}
       onChangeObservation={setObs}
       onChangeLocation={setLoc}
-      onBack={back}
-      onExit={() => go('discover')}
-      onDiscard={() => go('discover')}
-      onSubmit={() => go('mission-complete')}
+      onBack={editing ? cancel : back}
+      onExit={editing ? undefined : cancel}
+      onDiscard={editing ? undefined : cancel}
+      onSubmit={() => (onSave ? onSave(obs) : go('mission-complete'))}
+      submitLabel={editing ? 'Save changes' : 'Submit discovery'}
     />
   );
 }
@@ -664,12 +678,24 @@ function DiscoveryDetail({ back }: { back: () => void }) {
   );
 }
 
-function MyDiscoveries({ go }: { go: (s: Screen) => void }) {
+function MyDiscoveries({
+  go,
+  evidence,
+  onSelectEvidence,
+}: {
+  go: (s: Screen) => void;
+  evidence: CollectionEvidence[];
+  onSelectEvidence: (id: string) => void;
+}) {
   return (
     <ProductCollectionScreen
       activeMissionTitle={activeMission.title}
+      evidence={evidence}
       onContinue={() => go('investigate')}
-      onEvidence={() => go('evidence-detail')}
+      onEvidence={(id) => {
+        onSelectEvidence(id);
+        go('evidence-detail');
+      }}
       onDiscover={() => go('discover')}
       onProfile={() => go('profile')}
     />
@@ -693,86 +719,35 @@ function Trophies({
   go: (s: Screen) => void;
   back: () => void;
 }) {
-  const trophies = [
-    ['Sharp Observer', 'Document three field discoveries.', 'Unlocked'],
-    ['Evidence Keeper', 'Capture a photo, video, and sound.', 'Unlocked'],
-    ['Pattern Finder', 'Complete four investigation missions.', '3 / 4'],
-    ['Night Scout', 'Finish a discovery after sunset.', 'Locked'],
-  ];
-
   return (
-    <Frame nav={<BottomNav active="profile" go={go} />}>
-      <TopBar title="Trophies" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <AppText style={styles.eyebrowBlue}>ACHIEVEMENT FIELD LOG</AppText>
-        <AppText style={styles.body}>
-          2 of 6 unlocked · keep following the clues.
-        </AppText>
-
-        {trophies.map(([title, description, progress], index) => (
-          <View
-            key={title}
-            style={[
-              styles.trophyCard,
-              index === 2 && {
-                backgroundColor: colors.blueSubtle,
-                borderColor: '#D8E0FF',
-              },
-              index === 3 && {
-                backgroundColor: colors.white,
-                borderColor: colors.borderStrong,
-              },
-            ]}
-          >
-            <Ionicons
-              name="trophy-outline"
-              size={30}
-              color={index === 3 ? colors.muted : colors.blue}
-            />
-            <View style={{ flex: 1 }}>
-              <AppText style={styles.h3}>{title}</AppText>
-              <AppText style={styles.smallMuted}>{description}</AppText>
-            </View>
-            <View style={styles.progressPill}>
-              <AppText style={styles.meta}>{progress}</AppText>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-    </Frame>
+    <ProductTrophiesScreen
+      onBack={back}
+      onDiscover={() => go('discover')}
+      onCollection={() => go('my-discoveries')}
+    />
   );
 }
 
 function EvidenceDetail({
   go,
   back,
+  evidence,
+  onEdit,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  evidence: CollectionEvidence;
+  onEdit: () => void;
 }) {
   return (
-    <Frame>
-      <TopBar title="Evidence detail" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.pill}>
-          <AppText style={styles.pillText}>SAVED</AppText>
-        </View>
-
-        <TitleBlock title="The place has changed" body="TODAY" />
-
-        <View style={styles.evidenceDetailVisual}>
-          <Image source={brandMark} style={{ width: 92, height: 92 }} />
-        </View>
-
-        <AppText style={styles.label}>Observation</AppText>
-        <AppText style={styles.body}>
-          The business shown on the inactive page is gone; a different shop now occupies the address.
-        </AppText>
-
-        <Button outline label="Edit note" onPress={() => go('document')} />
-        <Button outline label="Share discovery" onPress={() => go('share')} />
-      </ScrollView>
-    </Frame>
+    <ProductEvidenceDetailScreen
+      title={evidence.title}
+      day={evidence.day}
+      note={evidence.note}
+      onBack={back}
+      onEdit={onEdit}
+      onShare={() => go('share')}
+    />
   );
 }
 
@@ -851,6 +826,13 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [history, setHistory] = useState<Screen[]>([]);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState(
+    DEFAULT_COLLECTION_EVIDENCE[0].id,
+  );
+  const [collectionEvidence, setCollectionEvidence] = useState<CollectionEvidence[]>(
+    () => DEFAULT_COLLECTION_EVIDENCE.map((item) => ({ ...item })),
+  );
+  const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
 
   const go = (next: Screen) => {
     if (next === 'capture') setCaptureMode(pendingCapture);
@@ -883,6 +865,35 @@ export default function App() {
       case 'evidence-preview':
         return <EvidencePreview mode={captureMode} go={go} back={back} />;
       case 'document':
+        if (editingEvidenceId) {
+          const editingEvidence = collectionEvidence.find(
+            (item) => item.id === editingEvidenceId,
+          );
+          return (
+            <Document
+              go={go}
+              back={back}
+              editing
+              initialObservation={editingEvidence?.note}
+              onCancel={() => {
+                setEditingEvidenceId(null);
+                back();
+              }}
+              onSave={(observation) => {
+                setCollectionEvidence((current) =>
+                  current.map((item) =>
+                    item.id === editingEvidenceId ? { ...item, note: observation } : item,
+                  ),
+                );
+                setEditingEvidenceId(null);
+                setHistory((current) =>
+                  current.at(-1) === 'evidence-detail' ? current.slice(0, -1) : current,
+                );
+                setScreen('evidence-detail');
+              }}
+            />
+          );
+        }
         return <Document go={go} back={back} />;
       case 'mission-complete':
         return <MissionComplete go={go} />;
@@ -891,17 +902,37 @@ export default function App() {
       case 'discovery-detail':
         return <DiscoveryDetail back={back} />;
       case 'my-discoveries':
-        return <MyDiscoveries go={go} />;
+        return (
+          <MyDiscoveries
+            go={go}
+            evidence={collectionEvidence}
+            onSelectEvidence={setSelectedEvidenceId}
+          />
+        );
       case 'profile':
         return <Profile go={go} />;
       case 'trophies':
         return <Trophies go={go} back={back} />;
       case 'evidence-detail':
-        return <EvidenceDetail go={go} back={back} />;
+        return (
+          <EvidenceDetail
+            go={go}
+            back={back}
+            evidence={
+              collectionEvidence.find(
+                (item) => item.id === selectedEvidenceId,
+              ) ?? collectionEvidence[0]
+            }
+            onEdit={() => {
+              setEditingEvidenceId(selectedEvidenceId);
+              go('document');
+            }}
+          />
+        );
       case 'share':
         return <Share back={back} />;
     }
-  }, [screen, captureMode]);
+  }, [screen, captureMode, selectedEvidenceId, collectionEvidence, editingEvidenceId]);
 
   if (!aLoaded || !iLoaded) return null;
 

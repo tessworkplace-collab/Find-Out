@@ -12,7 +12,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
 import { colors, radius } from '../theme';
+import {
+  DEFAULT_USER_PREFERENCES,
+  loadUserPreferences,
+  saveUserPreferences,
+  UserPreferences,
+} from '../preferencesStorage';
 import EvidenceCard from './EvidenceCard';
+import EvidenceVisual from './EvidenceVisual';
 import MissionCard from './MissionCard';
 
 type TopBarType = 'root' | 'back' | 'close';
@@ -952,7 +959,7 @@ type ProductCollectionScreenProps = {
   onProfile?: () => void;
 };
 
-const defaultCollectionEvidence: CollectionEvidence[] = [
+export const DEFAULT_COLLECTION_EVIDENCE: CollectionEvidence[] = [
   {
     id: 'dead-link-01',
     day: 'TODAY',
@@ -969,14 +976,14 @@ const defaultCollectionEvidence: CollectionEvidence[] = [
 
 export function ProductCollectionScreen({
   activeMissionTitle,
-  evidence = defaultCollectionEvidence,
+  evidence,
   onContinue,
   onEvidence,
   onDiscover,
   onProfile,
 }: ProductCollectionScreenProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
-  const collectionEvidence = evidence.length > 0 ? evidence.slice(0, 2) : defaultCollectionEvidence;
+  const collectionEvidence = (evidence ?? DEFAULT_COLLECTION_EVIDENCE).slice(0, 2);
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const visibleEvidence = collectionEvidence.filter((item) =>
     normalizedQuery.length === 0
@@ -1063,9 +1070,15 @@ export function ProductCollectionScreen({
           ))
         ) : (
           <View style={styles.collectionSearchEmpty}>
-            <Text style={styles.collectionSearchEmptyTitle}>No matching discoveries</Text>
+            <Text style={styles.collectionSearchEmptyTitle}>
+              {collectionEvidence.length === 0
+                ? 'No discoveries yet'
+                : 'No matching discoveries'}
+            </Text>
             <Text style={styles.collectionSearchEmptyBody}>
-              Try a different title, note, or date.
+              {collectionEvidence.length === 0
+                ? 'Complete a mission to save your first discovery.'
+                : 'Try a different title, note, or date.'}
             </Text>
           </View>
         )}
@@ -1081,12 +1094,65 @@ export function ProductCollectionScreen({
   );
 }
 
+type ProductEvidenceDetailScreenProps = {
+  title: string;
+  day: string;
+  note: string;
+  media?: React.ReactNode;
+  onBack: () => void;
+  onEdit?: () => void;
+  onShare?: () => void;
+};
+
+export function ProductEvidenceDetailScreen({
+  title,
+  day,
+  note,
+  media,
+  onBack,
+  onEdit,
+  onShare,
+}: ProductEvidenceDetailScreenProps) {
+  return (
+    <View style={styles.screen}>
+      <FigmaTopBar title="Evidence detail" type="back" onLeading={onBack} />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.evidenceDetailContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.savedBadge}>
+          <View style={styles.savedBadgeDot} />
+          <Text style={styles.savedBadgeText}>SAVED</Text>
+        </View>
+
+        <Text style={styles.evidenceDetailTitle}>{title}</Text>
+        <Text style={styles.evidenceDetailMeta}>FIELD NOTE · {day}</Text>
+
+        <View style={styles.evidenceDetailMedia}>
+          {media ?? <EvidenceVisual size="detail" />}
+        </View>
+
+        <View style={styles.observationCard}>
+          <Text style={styles.observationTitle}>Observation</Text>
+          <Text style={styles.observationBody}>{note}</Text>
+        </View>
+
+        {onEdit ? <FigmaActionButton label="Edit note" outline onPress={onEdit} /> : null}
+        {onShare ? (
+          <FigmaActionButton label="Share discovery" outline onPress={onShare} />
+        ) : null}
+      </ScrollView>
+    </View>
+  );
+}
+
 type ProductProfileScreenProps = {
   name?: string;
   stats?: string;
   onDiscover: () => void;
   onCollection: () => void;
-  onTrophies?: () => void;
+  onTrophies: () => void;
 };
 
 export function ProductProfileScreen({
@@ -1096,8 +1162,34 @@ export function ProductProfileScreen({
   onCollection,
   onTrophies,
 }: ProductProfileScreenProps) {
-  const [reminders, setReminders] = React.useState(true);
-  const [locationAccess, setLocationAccess] = React.useState(false);
+  const [preferences, setPreferences] = React.useState<UserPreferences>(
+    DEFAULT_USER_PREFERENCES,
+  );
+  const [preferencesReady, setPreferencesReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    loadUserPreferences()
+      .then((stored) => {
+        if (mounted) setPreferences(stored);
+      })
+      .finally(() => {
+        if (mounted) setPreferencesReady(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!preferencesReady) return;
+    saveUserPreferences(preferences).catch(() => undefined);
+  }, [preferences, preferencesReady]);
+
+  const togglePreference = (key: keyof UserPreferences) => {
+    setPreferences((current) => ({ ...current, [key]: !current[key] }));
+  };
 
   return (
     <View style={styles.screen}>
@@ -1115,7 +1207,15 @@ export function ProductProfileScreen({
           <Text style={styles.profileStats}>{stats}</Text>
         </View>
 
-        <Pressable onPress={onTrophies} style={styles.profileTrophySection}>
+        <Pressable
+          accessibilityLabel="View all trophies"
+          accessibilityRole="button"
+          onPress={onTrophies}
+          style={({ pressed }) => [
+            styles.profileTrophySection,
+            pressed && styles.pressed,
+          ]}
+        >
           <View style={styles.profileSectionHeader}>
             <View style={styles.profileSectionTitleRow}>
               <Text style={styles.profileSectionTitle}>Trophies</Text>
@@ -1142,13 +1242,15 @@ export function ProductProfileScreen({
           <Text style={styles.preferencesTitle}>Preferences</Text>
           <PreferenceRow
             label="Mission reminders"
-            value={reminders}
-            onPress={() => setReminders((value) => !value)}
+            value={preferences.missionReminders}
+            disabled={!preferencesReady}
+            onPress={() => togglePreference('missionReminders')}
           />
           <PreferenceRow
             label="Location access"
-            value={locationAccess}
-            onPress={() => setLocationAccess((value) => !value)}
+            value={preferences.locationAccess}
+            disabled={!preferencesReady}
+            onPress={() => togglePreference('locationAccess')}
           />
         </View>
       </ScrollView>
@@ -1166,19 +1268,176 @@ export function ProductProfileScreen({
 function PreferenceRow({
   label,
   value,
+  disabled = false,
   onPress,
 }: {
   label: string;
   value: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.preferenceRow}>
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.preferenceRow,
+        disabled && styles.preferenceRowDisabled,
+        pressed && styles.pressed,
+      ]}
+    >
       <Text style={styles.preferenceLabel}>{label}</Text>
       <View style={[styles.switchTrack, value && styles.switchTrackOn]}>
         <View style={[styles.switchThumb, value && styles.switchThumbOn]} />
       </View>
     </Pressable>
+  );
+}
+
+type TrophyState = 'unlocked' | 'progress' | 'locked';
+
+function AchievementCard({
+  title,
+  description,
+  progress,
+  state,
+}: {
+  title: string;
+  description: string;
+  progress: string;
+  state: TrophyState;
+}) {
+  return (
+    <View
+      style={[
+        styles.achievementCard,
+        state === 'progress' && styles.achievementCardProgress,
+        state === 'locked' && styles.achievementCardLocked,
+      ]}
+    >
+      <View
+        style={[
+          styles.achievementIconStage,
+          state === 'locked' && styles.achievementIconStageLocked,
+        ]}
+      >
+        <Ionicons
+          name="trophy-outline"
+          size={32}
+          color={state === 'locked' ? colors.muted : colors.blue}
+        />
+      </View>
+      <View style={styles.achievementCopy}>
+        <Text
+          style={[
+            styles.achievementTitle,
+            state === 'locked' && styles.achievementTitleLocked,
+          ]}
+        >
+          {title}
+        </Text>
+        <Text
+          style={[
+            styles.achievementDescription,
+            state === 'locked' && styles.achievementDescriptionLocked,
+          ]}
+        >
+          {description}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.achievementPill,
+          state === 'progress' && styles.achievementPillProgress,
+          state === 'locked' && styles.achievementPillLocked,
+        ]}
+      >
+        <Text
+          style={[
+            styles.achievementPillText,
+            state === 'progress' && styles.achievementPillTextProgress,
+            state === 'locked' && styles.achievementPillTextLocked,
+          ]}
+        >
+          {progress}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+type ProductTrophiesScreenProps = {
+  onBack: () => void;
+  onDiscover: () => void;
+  onCollection: () => void;
+};
+
+export function ProductTrophiesScreen({
+  onBack,
+  onDiscover,
+  onCollection,
+}: ProductTrophiesScreenProps) {
+  const trophies: Array<{
+    title: string;
+    description: string;
+    progress: string;
+    state: TrophyState;
+  }> = [
+    {
+      title: 'Sharp Observer',
+      description: 'Document three field discoveries.',
+      progress: 'Unlocked',
+      state: 'unlocked',
+    },
+    {
+      title: 'Evidence Keeper',
+      description: 'Capture a photo, video, and sound.',
+      progress: 'Unlocked',
+      state: 'unlocked',
+    },
+    {
+      title: 'Pattern Finder',
+      description: 'Complete four investigation missions.',
+      progress: '3 / 4',
+      state: 'progress',
+    },
+    {
+      title: 'Hidden Trophy',
+      description: 'Keep exploring to reveal this trophy.',
+      progress: 'Locked',
+      state: 'locked',
+    },
+  ];
+
+  return (
+    <View style={styles.screen}>
+      <FigmaTopBar title="Trophies & titles" type="back" onLeading={onBack} />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.trophiesContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.trophiesIntro}>
+          <Text style={styles.trophiesEyebrow}>ACHIEVEMENT FIELD LOG</Text>
+          <Text style={styles.trophiesSummary}>2 unlocked · 1 in progress · 1 hidden</Text>
+          <Image source={{ uri: BRAND_MARK_URI }} style={styles.trophiesBrandMark} />
+        </View>
+
+        {trophies.map((trophy) => (
+          <AchievementCard key={trophy.title} {...trophy} />
+        ))}
+      </ScrollView>
+
+      <FigmaBottomNavigation
+        active="profile"
+        onDiscover={onDiscover}
+        onCollection={onCollection}
+        onProfile={onBack}
+      />
+    </View>
   );
 }
 
@@ -2250,6 +2509,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 17,
   },
+  evidenceDetailContent: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  savedBadge: {
+    width: 120,
+    height: 32,
+    borderRadius: radius.full,
+    backgroundColor: colors.border,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  savedBadgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.text,
+  },
+  savedBadgeText: {
+    color: colors.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  evidenceDetailTitle: {
+    width: '100%',
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: -0.24,
+  },
+  evidenceDetailMeta: {
+    color: colors.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+  },
+  evidenceDetailMedia: {
+    width: '100%',
+    height: 300,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  observationCard: {
+    width: '100%',
+    minHeight: 130,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
+    backgroundColor: colors.white,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 8,
+  },
+  observationTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  observationBody: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
   profileContent: {
     paddingHorizontal: 24,
     paddingTop: 18,
@@ -2338,6 +2673,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  preferenceRowDisabled: { opacity: 0.6 },
   preferenceLabel: {
     flex: 1,
     color: colors.ink,
@@ -2360,5 +2696,108 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   switchThumbOn: { marginLeft: 24 },
+
+  trophiesContent: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  trophiesIntro: {
+    width: '100%',
+    height: 58,
+    paddingBottom: 10,
+    gap: 4,
+    position: 'relative',
+  },
+  trophiesEyebrow: {
+    color: colors.blue,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    lineHeight: 16,
+    letterSpacing: 0.88,
+  },
+  trophiesSummary: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  trophiesBrandMark: {
+    position: 'absolute',
+    right: 0,
+    top: 2,
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  achievementCard: {
+    width: '100%',
+    height: 112,
+    borderWidth: 1,
+    borderColor: '#EAF9BF',
+    borderRadius: radius.lg,
+    backgroundColor: colors.limeSubtle,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  achievementCardProgress: {
+    borderColor: '#E8EEFF',
+    backgroundColor: colors.blueSubtle,
+  },
+  achievementCardLocked: {
+    borderColor: colors.borderStrong,
+    backgroundColor: '#FAFAFA',
+  },
+  achievementIconStage: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  achievementIconStageLocked: { backgroundColor: colors.border },
+  achievementCopy: { flex: 1, gap: 4 },
+  achievementTitle: {
+    color: colors.ink,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  achievementTitleLocked: { color: colors.text },
+  achievementDescription: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  achievementDescriptionLocked: { color: colors.muted },
+  achievementPill: {
+    minWidth: 82,
+    borderRadius: radius.full,
+    backgroundColor: '#EAF9BF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
+  achievementPillProgress: {
+    minWidth: 64,
+    backgroundColor: '#E8EEFF',
+  },
+  achievementPillLocked: {
+    minWidth: 72,
+    backgroundColor: colors.border,
+  },
+  achievementPillText: {
+    color: colors.ink,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  achievementPillTextProgress: { color: colors.blue },
+  achievementPillTextLocked: { color: colors.muted },
 
 });

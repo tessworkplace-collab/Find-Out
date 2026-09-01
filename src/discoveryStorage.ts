@@ -83,3 +83,17 @@ export async function addCompletedDiscovery(input: {
   await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify([item, ...existing]));
   return item;
 }
+
+export async function updateCompletedDiscovery(
+  id: string,
+  updates: Pick<CompletedDiscovery, 'observation' | 'location'>,
+) {
+  const existing = await loadCompletedDiscoveries();
+  const target = existing.find(item => item.id === id);
+  if (!target) throw new Error('Discovery not found.');
+
+  const updated: CompletedDiscovery = { ...target, ...updates };
+  const next = existing.map(item => (item.id === id ? updated : item));
+  await AsyncStorage.setItem(DISCOVERIES_KEY, JSON.stringify(next));
+  return updated;
+}

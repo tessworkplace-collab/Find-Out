@@ -32,6 +32,7 @@ import {
   ProductDiscoverScreen,
   ProductDocumentScreen,
   ProductEvidencePickerScreen,
+  ProductEvidencePreviewScreen,
   ProductInvestigateScreen,
   ProductMissionDetailScreen,
   ProductOnboardingScreen,
@@ -516,43 +517,27 @@ function EvidencePreview({
   const label =
     mode === 'photo' ? 'PHOTO' : mode === 'video' ? 'VIDEO · 00:12' : 'AUDIO · 00:18';
 
-  const icon =
-    mode === 'photo'
-      ? 'camera-outline'
-      : mode === 'video'
-        ? 'play'
-        : 'play';
+  const media = (
+    <View style={styles.sharedPreviewMedia}>
+      {mode === 'photo' ? (
+        <Ionicons name="camera-outline" size={64} color={colors.white} />
+      ) : (
+        <View style={styles.sharedPreviewPlayButton}>
+          <Ionicons name="play" size={34} color={colors.white} />
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <Frame>
-      <TopBar title="Review evidence" onBack={back} />
-      <ScrollView contentContainerStyle={styles.captureContent}>
-        <View style={styles.captureTitleBlock}>
-          <AppText style={styles.captureTitle}>Check your evidence</AppText>
-          <AppText style={styles.body}>
-            Make sure it clearly shows what you discovered.
-          </AppText>
-        </View>
-
-        <View style={styles.reviewPanel}>
-          <View style={styles.mediaTypeBadge}>
-            <AppText style={styles.cameraBadgeText}>{label}</AppText>
-          </View>
-
-          {mode === 'photo' ? (
-            <Ionicons name={icon} size={64} color={colors.white} />
-          ) : (
-            <View style={styles.playButton}>
-              <Ionicons name="play" size={34} color={colors.white} />
-            </View>
-          )}
-        </View>
-
-        <AppText style={styles.captureStatus}>Ready to use</AppText>
-        <Button label="Use this evidence" onPress={() => go('document')} />
-        <Button outline label="Retake" onPress={() => go('capture')} />
-      </ScrollView>
-    </Frame>
+    <ProductEvidencePreviewScreen
+      media={media}
+      mediaLabel={label}
+      onBack={back}
+      onExit={() => go('discover')}
+      onUse={() => go('document')}
+      onRetake={() => go('capture')}
+    />
   );
 }
 
@@ -1372,6 +1357,22 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: '#EDF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sharedPreviewMedia: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sharedPreviewPlayButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#34353C',
     alignItems: 'center',
     justifyContent: 'center',
   },

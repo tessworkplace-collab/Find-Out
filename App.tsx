@@ -34,6 +34,7 @@ import {
   MissionDefinition,
 } from './src/missions';
 import {
+  getDailyDeckKey,
   getMissionDeck,
   getNextMissionRemix,
   getWeeklyCase,
@@ -972,7 +973,7 @@ export default function App() {
   const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
-  const [missionDeckSeed] = useState(() => String(Date.now()));
+  const [missionDeckSeed] = useState(() => getDailyDeckKey());
   const [missionDeckRevealed, setMissionDeckRevealed] = useState(false);
   const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState(
@@ -1234,8 +1235,8 @@ export default function App() {
             }}
             weeklyCase={{
               progress: weeklyCaseProgress,
-              total: weeklyCase.missions.length,
-              missionTitles: weeklyCase.missions.map((mission) => mission.title),
+              total: weeklyCase.requiredDifficulties.length,
+              missionTitles: weeklyCase.requiredDifficulties,
             }}
           />
         );

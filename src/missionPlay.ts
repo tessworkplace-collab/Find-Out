@@ -1,7 +1,6 @@
 import {
   getMissionById,
   MISSIONS,
-  MissionDefinition,
   MissionDifficulty,
   MissionEvidenceMode,
 } from './missions';
@@ -16,7 +15,7 @@ export type MissionRemix = {
 export type WeeklyCase = {
   key: string;
   startsAt: string;
-  missions: MissionDefinition[];
+  requiredDifficulties: MissionDifficulty[];
 };
 
 type Completion = {
@@ -58,6 +57,14 @@ export function getMissionDeck(
   );
 }
 
+export function getDailyDeckKey(now = new Date()) {
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 function mondayFor(date: Date) {
   const monday = new Date(date);
   monday.setHours(0, 0, 0, 0);
@@ -76,9 +83,7 @@ export function getWeeklyCase(now = new Date()): WeeklyCase {
   return {
     key,
     startsAt: startsAt.toISOString(),
-    missions: difficulties.map((difficulty) =>
-      pickByDifficulty(difficulty, `weekly-case:${key}`),
-    ),
+    requiredDifficulties: difficulties,
   };
 }
 
@@ -86,17 +91,20 @@ export function getWeeklyCaseProgress(
   completions: Completion[],
   weeklyCase = getWeeklyCase(),
 ) {
-  const missionIds = new Set(weeklyCase.missions.map((mission) => mission.id));
   const startsAt = Date.parse(weeklyCase.startsAt);
   return new Set(
     completions
       .filter(
         (item) =>
-          missionIds.has(item.missionId) &&
           Number.isFinite(Date.parse(item.completedAt)) &&
           Date.parse(item.completedAt) >= startsAt,
       )
-      .map((item) => item.missionId),
+      .map((item) => getMissionById(item.missionId)?.difficulty)
+      .filter(
+        (difficulty): difficulty is MissionDifficulty =>
+          difficulty !== undefined &&
+          weeklyCase.requiredDifficulties.includes(difficulty as MissionDifficulty),
+      ),
   ).size;
 }
 

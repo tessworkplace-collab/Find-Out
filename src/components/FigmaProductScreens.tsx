@@ -13,7 +13,6 @@ import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
 import { colors, radius } from '../theme';
 import {
-  FEATURED_MISSION_ID,
   MissionDefinition,
   MissionEvidenceMode,
 } from '../missions';
@@ -281,40 +280,6 @@ function BrowseMissionCard({
   );
 }
 
-function FilterChip({
-  label,
-  selected = false,
-  onPress,
-}: {
-  label: MissionFilter;
-  selected?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      accessibilityLabel={`Show ${label.toLowerCase()} difficulty missions`}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.filterChip,
-        selected && styles.filterChipSelected,
-        pressed && styles.pressed,
-      ]}
-    >
-      {selected ? <View style={styles.filterDot} /> : null}
-      <Text style={[styles.filterText, selected && styles.filterTextSelected]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-type MissionDifficulty = 'Easy' | 'Medium' | 'Hard';
-type MissionFilter = 'All' | MissionDifficulty;
-
-const missionFilters: MissionFilter[] = ['All', 'Easy', 'Medium', 'Hard'];
-
 type ProductOnboardingScreenProps = {
   onStart: () => void;
   onHowItWorks: () => void;
@@ -396,15 +361,9 @@ export function ProductDiscoverScreen({
   onCollection,
   onProfile,
 }: ProductDiscoverScreenProps) {
-  const [selectedFilter, setSelectedFilter] = React.useState<MissionFilter>('All');
   const completedSet = new Set(completedMissionIds);
-  const featuredMission =
-    missions.find((mission) => mission.id === FEATURED_MISSION_ID) ?? missions[0];
-  const visibleMissions = missions.filter(
-    (mission) =>
-      mission.id !== featuredMission?.id &&
-      (selectedFilter === 'All' || mission.difficulty === selectedFilter),
-  );
+  const activeMission = missions.find((mission) => mission.id === activeMissionId);
+  const deckContainsActive = missionDeck.some((mission) => mission.id === activeMissionId);
 
   const renderMission = (mission: MissionDefinition) => {
     const completed = completedSet.has(mission.id);
@@ -441,10 +400,17 @@ export function ProductDiscoverScreen({
       >
         <View style={styles.titleBlock}>
           <Text style={styles.h1}>Something familiar. Something unnoticed.</Text>
-          <Text style={styles.body}>Open one mission and investigate it your way.</Text>
+          <Text style={styles.body}>Draw three questions. Choose one, then decide where to begin.</Text>
         </View>
 
-        <SectionLabel>MISSION DECK</SectionLabel>
+        {activeMission && !deckContainsActive ? (
+          <>
+            <SectionLabel>ACTIVE MISSION</SectionLabel>
+            {renderMission(activeMission)}
+          </>
+        ) : null}
+
+        <SectionLabel>MISSION DECK · {missions.length} IN THE POOL</SectionLabel>
         <View style={styles.missionDeckPanel}>
           <View style={styles.missionDeckHeader}>
             <View style={styles.missionDeckIcon}>
@@ -474,31 +440,6 @@ export function ProductDiscoverScreen({
           <Text style={styles.missionDeckUsed}>Shuffle used for this session</Text>
         ) : null}
 
-        <SectionLabel>FEATURED MISSION</SectionLabel>
-        {featuredMission ? renderMission(featuredMission) : null}
-
-        <SectionLabel>EXPLORE ALL {missions.length} MISSIONS</SectionLabel>
-        <View style={styles.filterRow}>
-          {missionFilters.map((filter) => (
-            <FilterChip
-              key={filter}
-              label={filter}
-              selected={selectedFilter === filter}
-              onPress={() => setSelectedFilter(filter)}
-            />
-          ))}
-        </View>
-
-        {visibleMissions.length > 0 ? (
-          visibleMissions.map(renderMission)
-        ) : (
-          <View style={styles.emptyFilterState}>
-            <Text style={styles.emptyFilterTitle}>No {selectedFilter.toLowerCase()} missions yet</Text>
-            <Text style={styles.emptyFilterBody}>
-              Try another difficulty or choose All to see every available mission.
-            </Text>
-          </View>
-        )}
       </ScrollView>
 
       <FigmaBottomNavigation

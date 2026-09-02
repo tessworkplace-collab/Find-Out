@@ -49,6 +49,7 @@ import {
   MISSIONS,
 } from './src/missions';
 import {
+  getDailyDeckKey,
   getMissionDeck,
   getMissionRemixById,
   getNextMissionRemix,
@@ -375,7 +376,7 @@ export default function NativeApp() {
   const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
-  const [missionDeckSeed] = useState(() => String(Date.now()));
+  const [missionDeckSeed] = useState(() => getDailyDeckKey());
   const [missionDeckRevealed, setMissionDeckRevealed] = useState(false);
   const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
@@ -1378,8 +1379,8 @@ export default function NativeApp() {
           }}
           weeklyCase={{
             progress: weeklyCaseProgress,
-            total: weeklyCase.missions.length,
-            missionTitles: weeklyCase.missions.map((mission) => mission.title),
+            total: weeklyCase.requiredDifficulties.length,
+            missionTitles: weeklyCase.requiredDifficulties,
           }}
           onDiscover={() => setScreen('discover')}
           onCollection={openMyDiscoveries}

@@ -975,7 +975,7 @@ export default function App() {
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
   const [missionDeckSeed] = useState(() => getDailyDeckKey());
-  const [missionDeckRevealed, setMissionDeckRevealed] = useState(false);
+  const [missionDeckRevealed, setMissionDeckRevealed] = useState(true);
   const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState(
     DEFAULT_WEB_DISCOVERIES[0].id,

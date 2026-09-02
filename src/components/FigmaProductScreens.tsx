@@ -453,9 +453,6 @@ export function ProductDiscoverScreen({
               </Text>
             </View>
           </View>
-          {!missionDeckRevealed && onDrawMissionDeck ? (
-            <FigmaActionButton label="Draw 5 missions" onPress={onDrawMissionDeck} />
-          ) : null}
         </View>
 
         {missionDeckRevealed ? missionDeck.map(renderDeckCard) : null}

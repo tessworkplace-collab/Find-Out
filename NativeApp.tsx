@@ -377,7 +377,7 @@ export default function NativeApp() {
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
   const [missionDeckSeed] = useState(() => getDailyDeckKey());
-  const [missionDeckRevealed, setMissionDeckRevealed] = useState(false);
+  const [missionDeckRevealed, setMissionDeckRevealed] = useState(true);
   const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
   const [evidence, setEvidence] = useState<Evidence | null>(null);

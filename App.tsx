@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Archivo_600SemiBold,
+  Archivo_700Bold,
   useFonts as useArchivoFonts,
 } from '@expo-google-fonts/archivo';
 import {
@@ -22,9 +23,54 @@ import {
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
-import { activeMission, nextMission, otherDiscoveries, yourDiscovery } from './src/data';
+import { otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
+import {
+  FEATURED_MISSION_ID,
+  formatEvidenceModes,
+  getMissionById,
+  MISSIONS,
+  MissionDefinition,
+} from './src/missions';
+import {
+  getDailyDeckKey,
+  getMissionDeck,
+  getNextMissionRemix,
+  getWeeklyCase,
+  getWeeklyCaseProgress,
+  MissionDeckCard,
+  MissionRemix,
+} from './src/missionPlay';
+import {
+  DEFAULT_TROPHY_STATE,
+  equipTrophyTitle,
+  evaluateTrophies,
+  getEquippedTitle,
+  loadTrophyState,
+  recordEvidenceRetake,
+  saveTrophyState,
+  syncTrophyState,
+  TrophyDiscovery,
+  TrophyState,
+  visibleTrophyCabinet,
+} from './src/trophySystem';
+import {
+  CollectionEvidence,
+  DEFAULT_COLLECTION_EVIDENCE,
+  ProductCollectionScreen,
+  ProductCompleteScreen,
+  ProductDiscoverScreen,
+  ProductDocumentScreen,
+  ProductEvidenceDetailScreen,
+  ProductEvidencePickerScreen,
+  ProductEvidencePreviewScreen,
+  ProductInvestigateScreen,
+  ProductMissionDetailScreen,
+  ProductOnboardingScreen,
+  ProductProfileScreen,
+  ProductTrophiesScreen,
+} from './src/components/FigmaProductScreens';
 
 type Screen =
   | 'onboarding'
@@ -45,6 +91,33 @@ type Screen =
   | 'share';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
+
+type WebDiscovery = CollectionEvidence & {
+  missionId: string;
+  evidenceType: CaptureMode;
+  location: string;
+  completedAt: string;
+};
+
+const DEFAULT_WEB_DISCOVERIES: WebDiscovery[] = DEFAULT_COLLECTION_EVIDENCE.map(
+  (item, index) => ({
+    ...item,
+    missionId: 'dead-link',
+    evidenceType: 'photo',
+    location: '',
+    completedAt: new Date(Date.now() - index * 86_400_000).toISOString(),
+  }),
+);
+
+function toTrophyDiscoveries(items: WebDiscovery[]): TrophyDiscovery[] {
+  return items.map((item) => ({
+    missionId: item.missionId,
+    evidenceType: item.evidenceType,
+    observation: item.note,
+    location: item.location,
+    completedAt: item.completedAt,
+  }));
+}
 
 const brandMark = { uri: BRAND_MARK_URI };
 const waveformBars = [18, 30, 22, 38, 26, 46, 24, 40, 28, 34, 20, 36, 24, 30, 18];
@@ -142,7 +215,13 @@ function Stepper({ stage }: { stage: keyof typeof stageIndex }) {
                 done && styles.stepDone,
               ]}
             >
-              <AppText style={[styles.stepNum, active && { color: colors.white }]}>
+              <AppText
+                style={[
+                  styles.stepNum,
+                  active && { color: colors.white },
+                  done && { color: colors.ink },
+                ]}
+              >
                 {i + 1}
               </AppText>
             </View>
@@ -159,6 +238,43 @@ function Stepper({ stage }: { stage: keyof typeof stageIndex }) {
         );
       })}
     </View>
+  );
+}
+
+function SavedEvidenceCard({
+  title,
+  category,
+  note,
+  icon = 'image-outline',
+  onPress,
+}: {
+  title: string;
+  category: string;
+  note: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.savedEvidenceCard,
+        pressed && { opacity: 0.82 },
+      ]}
+    >
+      <View style={styles.savedEvidenceVisual}>
+        <View style={styles.savedEvidenceIcon}>
+          <Ionicons name={icon} size={18} color={colors.blue} />
+        </View>
+      </View>
+      <AppText numberOfLines={2} style={styles.savedEvidenceTitle}>
+        {title}
+      </AppText>
+      <AppText style={styles.savedEvidenceMeta}>{category} · TODAY</AppText>
+      <AppText numberOfLines={3} style={styles.savedEvidenceNote}>
+        {note}
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -247,224 +363,117 @@ function MissionNumber({ number }: { number: string }) {
   );
 }
 
-function MissionCard({ locked, onPress }: { locked?: boolean; onPress?: () => void }) {
-  const d = locked ? nextMission : activeMission;
-
-  return (
-    <Pressable
-      disabled={locked}
-      onPress={onPress}
-      style={[styles.missionCard, locked && { opacity: 0.72 }]}
-    >
-      <View style={styles.pill}>
-        <AppText style={styles.pillText}>{d.category}</AppText>
-      </View>
-      <AppText style={styles.h3}>{d.title}</AppText>
-      <AppText style={styles.smallMuted}>{d.hook}</AppText>
-      <AppText style={styles.meta}>{locked ? nextMission.locked : 'OPEN MISSION →'}</AppText>
-      <View style={styles.track}>
-        <View style={styles.fill} />
-      </View>
-      <MissionNumber number={d.number} />
-    </Pressable>
-  );
-}
-
 function Onboarding({ go }: { go: (s: Screen) => void }) {
   return (
-    <View style={styles.onboarding}>
-      <View style={styles.logoLockup}>
-        <Image source={brandMark} style={styles.logoMark} />
-        <View>
-          <AppText style={styles.logoName}>FIND OUT</AppText>
-          <AppText style={styles.logoTag}>OPEN DISCOVERY</AppText>
-        </View>
-      </View>
-
-      <View style={{ marginTop: 190, gap: 24 }}>
-        <AppText style={styles.h1}>Turn curiosity into a mission.</AppText>
-        <AppText style={styles.body}>
-          Notice what is missing, investigate the real world, and submit your own discovery.
-        </AppText>
-      </View>
-
-      <View style={{ marginTop: 'auto', gap: 10 }}>
-        <Button label="Start exploring" onPress={() => go('discover')} />
-        <Button outline label="How it works" onPress={() => go('discover')} />
-      </View>
-
-      <AppText style={styles.footer}>Notice  •  Investigate  •  Submit  •  Reveal</AppText>
-    </View>
+    <ProductOnboardingScreen
+      onStart={() => go('discover')}
+      onHowItWorks={() => go('discover')}
+    />
   );
 }
 
-function Discover({ go }: { go: (s: Screen) => void }) {
+function Discover({
+  go,
+  missionDeck,
+  missionDeckRevealed,
+  refreshesRemaining,
+  activeMissionId,
+  completedMissionIds,
+  onDrawMissionDeck,
+  onShuffleMissionDeck,
+  onOpenMission,
+}: {
+  go: (s: Screen) => void;
+  missionDeck: MissionDeckCard[];
+  missionDeckRevealed: boolean;
+  refreshesRemaining: number;
+  activeMissionId: string | null;
+  completedMissionIds: string[];
+  onDrawMissionDeck: () => void;
+  onShuffleMissionDeck: () => void;
+  onOpenMission: (missionId: string) => void;
+}) {
   return (
-    <Frame nav={<BottomNav active="discover" go={go} />}>
-      <TopBar title="FIND OUT" type="root" onProfile={() => go('profile')} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <TitleBlock
-          title="Something familiar. Something unnoticed."
-          body="Open one mission and investigate it your way."
-        />
-        <View style={styles.search}>
-          <Ionicons name="search-outline" size={20} />
-          <AppText style={{ color: colors.muted }}>Search missions</AppText>
-        </View>
-        <View style={styles.filter}>
-          <View style={styles.limeDot} />
-          <AppText style={styles.label}>All</AppText>
-        </View>
-        <MissionCard onPress={() => go('mission-detail')} />
-        <MissionCard locked />
-      </ScrollView>
-    </Frame>
+    <ProductDiscoverScreen
+      missions={MISSIONS}
+      missionDeck={missionDeck}
+      missionDeckRevealed={missionDeckRevealed}
+      refreshesRemaining={refreshesRemaining}
+      activeMissionId={activeMissionId}
+      completedMissionIds={completedMissionIds}
+      onDrawMissionDeck={onDrawMissionDeck}
+      onShuffleMissionDeck={onShuffleMissionDeck}
+      onOpenMission={onOpenMission}
+      onCollection={() => go('my-discoveries')}
+      onProfile={() => go('profile')}
+    />
   );
 }
 
 function MissionDetail({
-  go,
   back,
+  mission,
+  onOpen,
 }: {
-  go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
+  onOpen: () => void;
 }) {
   return (
-    <Frame>
-      <TopBar title="Mission" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View
-          style={[
-            styles.filter,
-            {
-              width: 155,
-              backgroundColor: colors.blueSubtle,
-              borderColor: colors.blueSubtle,
-            },
-          ]}
-        >
-          <View style={[styles.limeDot, { backgroundColor: colors.blue }]} />
-          <AppText style={{ ...styles.label, color: colors.blue }}>SOUND MISSION</AppText>
-        </View>
-
-        <TitleBlock title={activeMission.title} body={activeMission.summary} />
-        <Stepper stage="Notice" />
-
-        <View style={styles.clue}>
-          <View style={styles.clueRailTop} />
-          <View style={styles.clueRailBottom} />
-          <AppText style={styles.eyebrowBlue}>CLUE 01 · OPEN</AppText>
-          <AppText style={styles.clueQ}>{activeMission.question}</AppText>
-          <AppText style={styles.body}>{activeMission.guidance}</AppText>
-          <View style={styles.clueDot} />
-        </View>
-
-        <Button label="Open the mission" onPress={() => go('investigate')} />
-      </ScrollView>
-    </Frame>
+    <ProductMissionDetailScreen
+      number={mission.number}
+      difficulty={mission.difficulty.toUpperCase()}
+      evidence={formatEvidenceModes(mission.evidenceModes)}
+      title={mission.title}
+      summary={mission.prompt}
+      question={mission.question}
+      guidance={`${mission.find} ${mission.investigate}`}
+      onBack={back}
+      onOpen={onOpen}
+    />
   );
 }
 
 function Investigate({
   go,
   back,
+  mission,
+  remix,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
+  remix?: MissionRemix | null;
 }) {
   return (
-    <Frame>
-      <TopBar title="Investigate" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content16}>
-        <Stepper stage="Investigate" />
-
-        <View style={styles.signal}>
-          <View style={styles.signalRail}>
-            <View style={styles.signalDot} />
-          </View>
-          <View style={{ flex: 1, gap: 24 }}>
-            <AppText style={styles.h1}>Follow the signal</AppText>
-            <AppText style={styles.body}>
-              Move slowly. Let one detail lead you to the next.
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.questionCard}>
-          <AppText style={styles.eyebrow}>YOUR MISSION</AppText>
-          <AppText style={styles.questionText}>
-            What familiar sound are you following?
-          </AppText>
-          <View style={styles.smallLimeDot} />
-        </View>
-
-        <View style={styles.guidance}>
-          <AppText style={styles.guidanceTitle}>Pay closer attention</AppText>
-          <AppText style={styles.guidanceBody}>
-            Notice what stands out, then decide what matters.
-          </AppText>
-        </View>
-
-        <Button label="I found something" onPress={() => go('evidence')} />
-      </ScrollView>
-    </Frame>
+    <ProductInvestigateScreen
+      question={mission.question}
+      remix={remix}
+      onBack={back}
+      onExit={() => go('discover')}
+      onFound={() => go('evidence')}
+    />
   );
 }
 
 function Evidence({
   go,
   back,
+  mission,
+  remix,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
+  remix?: MissionRemix | null;
 }) {
-  const captureOptions: Array<{
-    mode: CaptureMode;
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-  }> = [
-    { mode: 'photo', icon: 'camera-outline', label: 'Photo' },
-    { mode: 'video', icon: 'videocam-outline', label: 'Video' },
-    { mode: 'audio', icon: 'mic-outline', label: 'Audio' },
-  ];
-
   return (
-    <Frame>
-      <TopBar title="Capture evidence" onBack={back} />
-      <ScrollView contentContainerStyle={styles.evidenceContent}>
-        <Stepper stage="Document" />
-        <TitleBlock
-          title="Capture what you found"
-          body="Choose the format that best shows your discovery."
-        />
-
-        <View style={styles.evidencePreview}>
-          <View style={styles.evidenceCorner}>
-            <View style={styles.evTop} />
-            <View style={styles.evLeft} />
-            <View style={styles.evDot} />
-          </View>
-        </View>
-
-        <View style={styles.captureRow}>
-          {captureOptions.map(({ mode, icon, label }) => (
-            <Pressable
-              key={mode}
-              onPress={() => goCapture(go, mode)}
-              style={({ pressed }) => [
-                styles.captureAction,
-                pressed && { backgroundColor: colors.blueSubtle },
-              ]}
-            >
-              <View style={styles.captureIcon}>
-                <Ionicons name={icon} size={24} color={colors.blue} />
-              </View>
-              <AppText style={styles.label}>{label}</AppText>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-    </Frame>
+    <ProductEvidencePickerScreen
+      onBack={back}
+      onExit={() => go('discover')}
+      onSelect={(mode) => goCapture(go, mode)}
+      allowedModes={remix?.evidenceMode ? [remix.evidenceMode] : mission.evidenceModes}
+    />
   );
 }
 
@@ -599,158 +608,106 @@ function EvidencePreview({
   mode,
   go,
   back,
+  onRetake,
 }: {
   mode: CaptureMode;
   go: (s: Screen) => void;
   back: () => void;
+  onRetake?: () => void;
 }) {
   const label =
     mode === 'photo' ? 'PHOTO' : mode === 'video' ? 'VIDEO · 00:12' : 'AUDIO · 00:18';
 
-  const icon =
-    mode === 'photo'
-      ? 'camera-outline'
-      : mode === 'video'
-        ? 'play'
-        : 'play';
+  const media = (
+    <View style={styles.sharedPreviewMedia}>
+      {mode === 'photo' ? (
+        <Ionicons name="camera-outline" size={64} color={colors.white} />
+      ) : (
+        <View style={styles.sharedPreviewPlayButton}>
+          <Ionicons name="play" size={34} color={colors.white} />
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <Frame>
-      <TopBar title="Review evidence" onBack={back} />
-      <ScrollView contentContainerStyle={styles.captureContent}>
-        <View style={styles.captureTitleBlock}>
-          <AppText style={styles.captureTitle}>Check your evidence</AppText>
-          <AppText style={styles.body}>
-            Make sure it clearly shows what you discovered.
-          </AppText>
-        </View>
-
-        <View style={styles.reviewPanel}>
-          <View style={styles.mediaTypeBadge}>
-            <AppText style={styles.cameraBadgeText}>{label}</AppText>
-          </View>
-
-          {mode === 'photo' ? (
-            <Ionicons name={icon} size={64} color={colors.white} />
-          ) : (
-            <View style={styles.playButton}>
-              <Ionicons name="play" size={34} color={colors.white} />
-            </View>
-          )}
-        </View>
-
-        <AppText style={styles.captureStatus}>Ready to use</AppText>
-        <Button label="Use this evidence" onPress={() => go('document')} />
-        <Button outline label="Retake" onPress={() => go('capture')} />
-      </ScrollView>
-    </Frame>
+    <ProductEvidencePreviewScreen
+      media={media}
+      mediaLabel={label}
+      onBack={back}
+      onExit={() => go('discover')}
+      onUse={() => go('document')}
+      onRetake={onRetake ?? (() => go('capture'))}
+    />
   );
 }
 
 function Document({
   go,
   back,
+  initialObservation = '',
+  initialLocation = '',
+  editing = false,
+  onCancel,
+  onSave,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  initialObservation?: string;
+  initialLocation?: string;
+  editing?: boolean;
+  onCancel?: () => void;
+  onSave?: (observation: string, location: string) => void;
 }) {
-  const [obs, setObs] = useState(yourDiscovery.observation);
-  const [loc, setLoc] = useState('');
+  const [obs, setObs] = useState(initialObservation);
+  const [loc, setLoc] = useState(initialLocation);
+  const cancel = onCancel ?? (() => go('discover'));
 
   return (
-    <Frame>
-      <TopBar title="Document" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content12}>
-        <Stepper stage="Document" />
-        <AppText style={styles.eyebrowBlue}>FIELD NOTE · 03</AppText>
-        <TitleBlock
-          title="Describe what you found"
-          body="Add just enough context for someone else to understand what you found."
-        />
-
-        <View style={styles.field}>
-          <AppText style={styles.label}>Observation</AppText>
-          <TextInput value={obs} onChangeText={setObs} style={styles.input} />
-          <AppText style={styles.helper}>Saved as draft</AppText>
-        </View>
-
-        <View style={styles.field}>
-          <AppText style={styles.label}>Location</AppText>
-          <TextInput
-            value={loc}
-            onChangeText={setLoc}
-            placeholder="Where did you find it?"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
-          />
-          <AppText style={styles.helper}>Optional place name</AppText>
-        </View>
-
-        <View style={styles.info}>
-          <Ionicons name="information-circle-outline" size={20} color={colors.blue} />
-          <View>
-            <AppText style={styles.guidanceTitle}>Evidence linked</AppText>
-            <AppText style={styles.guidanceBody}>
-              This entry stays connected to your mission.
-            </AppText>
-          </View>
-        </View>
-
-        <Button label="Submit discovery" onPress={() => go('mission-complete')} />
-      </ScrollView>
-    </Frame>
+    <ProductDocumentScreen
+      observation={obs}
+      location={loc}
+      onChangeObservation={setObs}
+      onChangeLocation={setLoc}
+      onBack={editing ? cancel : back}
+      onExit={editing ? undefined : cancel}
+      onDiscard={editing ? undefined : cancel}
+      onSubmit={() => (onSave ? onSave(obs, loc) : go('mission-complete'))}
+      submitLabel={editing ? 'Save changes' : 'Submit discovery'}
+    />
   );
 }
 
-function MissionComplete({ go }: { go: (s: Screen) => void }) {
+function MissionComplete({
+  go,
+  unlockedTrophy,
+  onExplore,
+  onRemix,
+}: {
+  go: (s: Screen) => void;
+  unlockedTrophy?: { name: string; description: string } | null;
+  onExplore: () => void;
+  onRemix: () => void;
+}) {
   return (
-    <Frame>
-      <TopBar title="Mission complete" type="close" onBack={() => go('discover')} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Stepper stage="Submit" />
-
-        <View style={styles.success}>
-          <Ionicons name="checkmark" size={28} color={colors.ink} />
-        </View>
-
-        <View style={{ alignItems: 'center', gap: 8 }}>
-          <AppText style={styles.h1}>Discovery submitted</AppText>
-          <AppText style={styles.body}>
-            See how others answered the same mission.
-          </AppText>
-        </View>
-
-        <View style={styles.trophyCard}>
-          <Ionicons name="trophy-outline" size={32} color={colors.blue} />
-          <View style={{ flex: 1 }}>
-            <AppText style={styles.eyebrowBlue}>TROPHY UNLOCKED</AppText>
-            <AppText style={styles.h3}>Sharp Observer</AppText>
-            <AppText style={styles.smallMuted}>
-              You documented three field discoveries.
-            </AppText>
-          </View>
-        </View>
-
-        <Button
-          label="See other discoveries"
-          onPress={() => go('other-discoveries')}
-        />
-        <Button
-          outline
-          label="Explore another mission"
-          onPress={() => go('discover')}
-        />
-      </ScrollView>
-    </Frame>
+    <ProductCompleteScreen
+      onClose={() => go('discover')}
+      onOtherDiscoveries={() => go('other-discoveries')}
+      onExplore={onExplore}
+      onRemix={onRemix}
+      unlockedTrophy={unlockedTrophy}
+    />
   );
 }
 
 function OtherDiscoveries({
   go,
   back,
+  mission,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
 }) {
   return (
     <Frame>
@@ -760,10 +717,8 @@ function OtherDiscoveries({
           title="See what others found"
           body="See how others responded to the same mission."
         />
-        <AppText style={styles.eyebrow}>A SOUND YOU KNOW</AppText>
-        <AppText style={styles.body}>
-          Notice a familiar sound you hear often but rarely pay attention to.
-        </AppText>
+        <AppText style={styles.eyebrow}>{mission.title.toUpperCase()}</AppText>
+        <AppText style={styles.body}>{mission.prompt}</AppText>
 
         <View style={[styles.response, { backgroundColor: colors.limeSubtle }]}>
           <AppText style={styles.eyebrow}>YOUR DISCOVERY</AppText>
@@ -798,14 +753,22 @@ function OtherDiscoveries({
   );
 }
 
-function DiscoveryDetail({ back }: { back: () => void }) {
+function DiscoveryDetail({
+  back,
+  mission,
+}: {
+  back: () => void;
+  mission: MissionDefinition;
+}) {
   const d = otherDiscoveries[0];
 
   return (
     <Frame>
       <TopBar title="Other discovery" onBack={back} />
       <ScrollView contentContainerStyle={styles.detail}>
-        <AppText style={styles.eyebrow}>A SOUND YOU KNOW  ·  SAME MISSION</AppText>
+        <AppText style={styles.eyebrow}>
+          {mission.title.toUpperCase()}  ·  SAME MISSION
+        </AppText>
         <AppText style={styles.detailTitle}>{d.title}</AppText>
         <AppText style={styles.label}>{d.location}</AppText>
 
@@ -834,179 +797,102 @@ function DiscoveryDetail({ back }: { back: () => void }) {
   );
 }
 
-function MyDiscoveries({ go }: { go: (s: Screen) => void }) {
+function MyDiscoveries({
+  go,
+  evidence,
+  activeMissionTitle,
+  onContinue,
+  onSelectEvidence,
+}: {
+  go: (s: Screen) => void;
+  evidence: CollectionEvidence[];
+  activeMissionTitle?: string | null;
+  onContinue?: () => void;
+  onSelectEvidence: (id: string) => void;
+}) {
   return (
-    <Frame nav={<BottomNav active="mission" go={go} />}>
-      <TopBar
-        title="My Discoveries"
-        type="root"
-        onProfile={() => go('profile')}
-      />
-      <ScrollView contentContainerStyle={styles.content}>
-        <TitleBlock title="My Discoveries" body="Your missions and discoveries" />
-
-        <View style={styles.activeCard}>
-          <AppText style={styles.eyebrow}>ACTIVE MISSION</AppText>
-          <AppText style={styles.h3}>{activeMission.title}</AppText>
-          <AppText style={styles.smallMuted}>Investigate · In progress</AppText>
-          <Button label="Continue mission" onPress={() => go('investigate')} />
-        </View>
-
-        <AppText style={styles.label}>Completed discoveries</AppText>
-        <Pressable
-          onPress={() => go('evidence-detail')}
-          style={styles.evidenceCard}
-        >
-          <View style={{ flex: 1 }}>
-            <AppText style={styles.eyebrowBlue}>TODAY</AppText>
-            <AppText style={styles.h3}>The place has changed</AppText>
-            <AppText style={styles.smallMuted}>
-              A different shop now occupies the address.
-            </AppText>
-          </View>
-          <Image source={brandMark} style={styles.thumb} />
-        </Pressable>
-      </ScrollView>
-    </Frame>
+    <ProductCollectionScreen
+      activeMissionTitle={activeMissionTitle}
+      evidence={evidence}
+      onContinue={onContinue}
+      onEvidence={(id) => {
+        onSelectEvidence(id);
+        go('evidence-detail');
+      }}
+      onDiscover={() => go('discover')}
+      onProfile={() => go('profile')}
+    />
   );
 }
 
-function Profile({ go }: { go: (s: Screen) => void }) {
+function Profile({
+  go,
+  stats,
+  equippedTitle,
+  trophySummary,
+  weeklyCase,
+}: {
+  go: (s: Screen) => void;
+  stats: string;
+  equippedTitle: string | null;
+  trophySummary: React.ComponentProps<typeof ProductProfileScreen>['trophySummary'];
+  weeklyCase: React.ComponentProps<typeof ProductProfileScreen>['weeklyCase'];
+}) {
   return (
-    <Frame nav={<BottomNav active="profile" go={go} />}>
-      <TopBar title="Profile" type="root" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.avatar}>
-          <Ionicons name="person-outline" size={30} color={colors.blue} />
-        </View>
-
-        <View style={{ alignItems: 'center', gap: 6 }}>
-          <AppText style={styles.h3}>Tess</AppText>
-          <AppText style={styles.smallMuted}>
-            12 discoveries · 3 missions completed
-          </AppText>
-        </View>
-
-        <View style={styles.sectionRow}>
-          <AppText style={styles.h3}>Trophies</AppText>
-          <Pressable onPress={() => go('trophies')}>
-            <AppText style={{ ...styles.label, color: colors.blue }}>
-              2 / 6 · View all
-            </AppText>
-          </Pressable>
-        </View>
-
-        <View style={styles.trophyCard}>
-          <Ionicons name="trophy-outline" size={32} color={colors.blue} />
-          <View>
-            <AppText style={styles.h3}>Sharp Observer</AppText>
-            <AppText style={styles.smallMuted}>
-              Three discoveries documented.
-            </AppText>
-          </View>
-        </View>
-
-        <AppText style={styles.h3}>Preferences</AppText>
-        <View style={styles.pref}>
-          <AppText>Mission reminders</AppText>
-          <Ionicons name="toggle" size={34} color={colors.blue} />
-        </View>
-        <View style={styles.pref}>
-          <AppText>Location access</AppText>
-          <Ionicons name="toggle-outline" size={34} color={colors.muted} />
-        </View>
-      </ScrollView>
-    </Frame>
+    <ProductProfileScreen
+      stats={stats}
+      equippedTitle={equippedTitle}
+      trophySummary={trophySummary}
+      weeklyCase={weeklyCase}
+      onDiscover={() => go('discover')}
+      onCollection={() => go('my-discoveries')}
+      onTrophies={() => go('trophies')}
+    />
   );
 }
 
 function Trophies({
   go,
   back,
+  trophies,
+  onEquipTitle,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  trophies: React.ComponentProps<typeof ProductTrophiesScreen>['trophies'];
+  onEquipTitle: (trophyId: string) => void;
 }) {
-  const trophies = [
-    ['Sharp Observer', 'Document three field discoveries.', 'Unlocked'],
-    ['Evidence Keeper', 'Capture a photo, video, and sound.', 'Unlocked'],
-    ['Pattern Finder', 'Complete four investigation missions.', '3 / 4'],
-    ['Night Scout', 'Finish a discovery after sunset.', 'Locked'],
-  ];
-
   return (
-    <Frame nav={<BottomNav active="profile" go={go} />}>
-      <TopBar title="Trophies" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <AppText style={styles.eyebrowBlue}>ACHIEVEMENT FIELD LOG</AppText>
-        <AppText style={styles.body}>
-          2 of 6 unlocked · keep following the clues.
-        </AppText>
-
-        {trophies.map(([title, description, progress], index) => (
-          <View
-            key={title}
-            style={[
-              styles.trophyCard,
-              index === 2 && {
-                backgroundColor: colors.blueSubtle,
-                borderColor: '#D8E0FF',
-              },
-              index === 3 && {
-                backgroundColor: colors.white,
-                borderColor: colors.borderStrong,
-              },
-            ]}
-          >
-            <Ionicons
-              name="trophy-outline"
-              size={30}
-              color={index === 3 ? colors.muted : colors.blue}
-            />
-            <View style={{ flex: 1 }}>
-              <AppText style={styles.h3}>{title}</AppText>
-              <AppText style={styles.smallMuted}>{description}</AppText>
-            </View>
-            <View style={styles.progressPill}>
-              <AppText style={styles.meta}>{progress}</AppText>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-    </Frame>
+    <ProductTrophiesScreen
+      trophies={trophies}
+      onEquipTitle={onEquipTitle}
+      onBack={back}
+      onDiscover={() => go('discover')}
+      onCollection={() => go('my-discoveries')}
+    />
   );
 }
 
 function EvidenceDetail({
   go,
   back,
+  evidence,
+  onEdit,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  evidence: CollectionEvidence;
+  onEdit: () => void;
 }) {
   return (
-    <Frame>
-      <TopBar title="Evidence detail" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.pill}>
-          <AppText style={styles.pillText}>SAVED</AppText>
-        </View>
-
-        <TitleBlock title="The place has changed" body="CITY NATURE · TODAY" />
-
-        <View style={styles.evidenceDetailVisual}>
-          <Image source={brandMark} style={{ width: 92, height: 92 }} />
-        </View>
-
-        <AppText style={styles.label}>Observation</AppText>
-        <AppText style={styles.body}>
-          The business shown on the inactive page is gone; a different shop now occupies the address.
-        </AppText>
-
-        <Button outline label="Edit note" onPress={() => go('document')} />
-        <Button outline label="Share discovery" onPress={() => go('share')} />
-      </ScrollView>
-    </Frame>
+    <ProductEvidenceDetailScreen
+      title={evidence.title}
+      day={evidence.day}
+      note={evidence.note}
+      onBack={back}
+      onEdit={onEdit}
+      onShare={() => go('share')}
+    />
   );
 }
 
@@ -1074,7 +960,7 @@ function Share({ back }: { back: () => void }) {
 }
 
 export default function App() {
-  const [aLoaded] = useArchivoFonts({ Archivo_600SemiBold });
+  const [aLoaded] = useArchivoFonts({ Archivo_600SemiBold, Archivo_700Bold });
   const [iLoaded] = useInterFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -1084,7 +970,60 @@ export default function App() {
 
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [history, setHistory] = useState<Screen[]>([]);
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
+  const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
+  const [missionDeckSeed] = useState(() => getDailyDeckKey());
+  const [missionDeckRevealed, setMissionDeckRevealed] = useState(true);
+  const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState(
+    DEFAULT_WEB_DISCOVERIES[0].id,
+  );
+  const [collectionEvidence, setCollectionEvidence] = useState<WebDiscovery[]>(
+    () => DEFAULT_WEB_DISCOVERIES.map((item) => ({ ...item })),
+  );
+  const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
+  const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
+  const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
+
+  const selectedMission = getMissionById(selectedMissionId) ?? MISSIONS[0];
+  const activeMission = getMissionById(activeMissionId);
+  const flowMission = activeMission ?? selectedMission;
+  const completedMissionIds = useMemo(
+    () => [...new Set(collectionEvidence.map((item) => item.missionId))],
+    [collectionEvidence],
+  );
+  const trophyEvaluations = useMemo(
+    () => evaluateTrophies(toTrophyDiscoveries(collectionEvidence), trophyState),
+    [collectionEvidence, trophyState],
+  );
+  const trophyCabinet = useMemo(
+    () => visibleTrophyCabinet(trophyEvaluations),
+    [trophyEvaluations],
+  );
+  const missionDeck = useMemo(
+    () => getMissionDeck(missionDeckSeed, missionDeckShuffleRound, completedMissionIds),
+    [missionDeckSeed, missionDeckShuffleRound, completedMissionIds],
+  );
+  const weeklyCase = useMemo(() => getWeeklyCase(), []);
+  const weeklyCaseProgress = useMemo(
+    () => getWeeklyCaseProgress(collectionEvidence, weeklyCase),
+    [collectionEvidence, weeklyCase],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    loadTrophyState().then((stored) => {
+      if (!mounted) return;
+      const synced = syncTrophyState(toTrophyDiscoveries(DEFAULT_WEB_DISCOVERIES), stored);
+      setTrophyState(synced.state);
+      saveTrophyState(synced.state).catch(() => undefined);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const go = (next: Screen) => {
     if (next === 'capture') setCaptureMode(pendingCapture);
@@ -1100,42 +1039,256 @@ export default function App() {
       return copy;
     });
 
+  const openMission = (missionId: string) => {
+    if (!getMissionById(missionId)) return;
+    setSelectedMissionId(missionId);
+    go('mission-detail');
+  };
+
+  const beginMission = () => {
+    setActiveMissionId(selectedMission.id);
+    setActiveRemix(null);
+    setCaptureMode(selectedMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    go('investigate');
+  };
+
+  const updateTrophiesFor = (discoveries: WebDiscovery[], state = trophyState) => {
+    const synced = syncTrophyState(toTrophyDiscoveries(discoveries), state);
+    setTrophyState(synced.state);
+    saveTrophyState(synced.state).catch(() => undefined);
+    return synced;
+  };
+
+  const submitMission = (observation: string, discoveryLocation: string) => {
+    const completed: WebDiscovery = {
+      id: `${flowMission.id}-${Date.now()}`,
+      missionId: flowMission.id,
+      evidenceType: captureMode,
+      title: flowMission.title,
+      note: observation,
+      location: discoveryLocation,
+      completedAt: new Date().toISOString(),
+      day: 'TODAY',
+    };
+    const next = [completed, ...collectionEvidence];
+    setCollectionEvidence(next);
+    setActiveMissionId(null);
+    setSelectedEvidenceId(completed.id);
+    const synced = updateTrophiesFor(next);
+    setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
+    go('mission-complete');
+  };
+
+  const exploreAnotherMission = () => {
+    setActiveMissionId(null);
+    setActiveRemix(null);
+    setSelectedMissionId(FEATURED_MISSION_ID);
+    setLastUnlockedTrophyId(null);
+    go('discover');
+  };
+
+  const remixMission = () => {
+    const previous = collectionEvidence.find(
+      (item) => item.missionId === flowMission.id,
+    );
+    const completionCount = collectionEvidence.filter(
+      (item) => item.missionId === flowMission.id,
+    ).length;
+    const remix = getNextMissionRemix(
+      flowMission.id,
+      completionCount,
+      previous?.evidenceType,
+    );
+    setSelectedMissionId(flowMission.id);
+    setActiveMissionId(flowMission.id);
+    setActiveRemix(remix);
+    setCaptureMode(remix.evidenceMode ?? flowMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    go('investigate');
+  };
+
+  const retakeEvidence = () => {
+    const nextState = recordEvidenceRetake(trophyState, flowMission.id);
+    setTrophyState(nextState);
+    saveTrophyState(nextState).catch(() => undefined);
+    go('capture');
+  };
+
+  const handleEquipTitle = (trophyId: string) => {
+    if (!trophyEvaluations.some((item) => item.definition.id === trophyId && item.unlocked)) {
+      return;
+    }
+    const nextState = equipTrophyTitle(trophyState, trophyId);
+    setTrophyState(nextState);
+    saveTrophyState(nextState).catch(() => undefined);
+  };
+
   const content = useMemo(() => {
     switch (screen) {
       case 'onboarding':
         return <Onboarding go={go} />;
       case 'discover':
-        return <Discover go={go} />;
+        return (
+          <Discover
+            go={go}
+            missionDeck={missionDeck}
+            missionDeckRevealed={missionDeckRevealed}
+            refreshesRemaining={Math.max(0, 2 - missionDeckShuffleRound)}
+            activeMissionId={activeMissionId}
+            completedMissionIds={completedMissionIds}
+            onDrawMissionDeck={() => setMissionDeckRevealed(true)}
+            onShuffleMissionDeck={() => setMissionDeckShuffleRound((round) => Math.min(2, round + 1))}
+            onOpenMission={openMission}
+          />
+        );
       case 'mission-detail':
-        return <MissionDetail go={go} back={back} />;
+        return <MissionDetail back={back} mission={selectedMission} onOpen={beginMission} />;
       case 'investigate':
-        return <Investigate go={go} back={back} />;
+        return <Investigate go={go} back={back} mission={flowMission} remix={activeRemix} />;
       case 'evidence':
-        return <Evidence go={go} back={back} />;
+        return <Evidence go={go} back={back} mission={flowMission} remix={activeRemix} />;
       case 'capture':
         return <Capture mode={captureMode} go={go} back={back} />;
       case 'evidence-preview':
-        return <EvidencePreview mode={captureMode} go={go} back={back} />;
+        return (
+          <EvidencePreview
+            mode={captureMode}
+            go={go}
+            back={back}
+            onRetake={retakeEvidence}
+          />
+        );
       case 'document':
-        return <Document go={go} back={back} />;
+        if (editingEvidenceId) {
+          const editingEvidence = collectionEvidence.find(
+            (item) => item.id === editingEvidenceId,
+          );
+          return (
+            <Document
+              go={go}
+              back={back}
+              editing
+              initialObservation={editingEvidence?.note}
+              initialLocation={editingEvidence?.location}
+              onCancel={() => {
+                setEditingEvidenceId(null);
+                back();
+              }}
+              onSave={(observation, discoveryLocation) => {
+                const next = collectionEvidence.map((item) =>
+                  item.id === editingEvidenceId
+                    ? { ...item, note: observation, location: discoveryLocation }
+                    : item,
+                );
+                setCollectionEvidence(next);
+                updateTrophiesFor(next);
+                setEditingEvidenceId(null);
+                setHistory((current) =>
+                  current.at(-1) === 'evidence-detail' ? current.slice(0, -1) : current,
+                );
+                setScreen('evidence-detail');
+              }}
+            />
+          );
+        }
+        return <Document go={go} back={back} onSave={submitMission} />;
       case 'mission-complete':
-        return <MissionComplete go={go} />;
+        return (
+          <MissionComplete
+            go={go}
+            onExplore={exploreAnotherMission}
+            onRemix={remixMission}
+            unlockedTrophy={
+              trophyEvaluations.find(
+                (item) => item.definition.id === lastUnlockedTrophyId,
+              )?.definition ?? null
+            }
+          />
+        );
       case 'other-discoveries':
-        return <OtherDiscoveries go={go} back={back} />;
+        return <OtherDiscoveries go={go} back={back} mission={flowMission} />;
       case 'discovery-detail':
-        return <DiscoveryDetail back={back} />;
+        return <DiscoveryDetail back={back} mission={flowMission} />;
       case 'my-discoveries':
-        return <MyDiscoveries go={go} />;
+        return (
+          <MyDiscoveries
+            go={go}
+            evidence={collectionEvidence}
+            activeMissionTitle={activeMission?.title}
+            onContinue={activeMission ? () => go('investigate') : undefined}
+            onSelectEvidence={setSelectedEvidenceId}
+          />
+        );
       case 'profile':
-        return <Profile go={go} />;
+        return (
+          <Profile
+            go={go}
+            stats={`${collectionEvidence.length} discoveries  ·  ${completedMissionIds.length} missions completed`}
+            equippedTitle={getEquippedTitle(trophyState)}
+            trophySummary={{
+              unlocked: trophyCabinet.filter((item) => item.unlocked).length,
+              total: trophyCabinet.length,
+              featuredName: trophyCabinet.find((item) => item.equipped)?.definition.name ??
+                trophyCabinet.find((item) => item.unlocked)?.definition.name,
+              featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
+                trophyCabinet.find((item) => item.unlocked)?.definition.description,
+            }}
+            weeklyCase={{
+              progress: weeklyCaseProgress,
+              total: weeklyCase.requiredDifficulties.length,
+              missionTitles: weeklyCase.requiredDifficulties,
+            }}
+          />
+        );
       case 'trophies':
-        return <Trophies go={go} back={back} />;
+        return (
+          <Trophies
+            go={go}
+            back={back}
+            trophies={trophyCabinet}
+            onEquipTitle={handleEquipTitle}
+          />
+        );
       case 'evidence-detail':
-        return <EvidenceDetail go={go} back={back} />;
+        return (
+          <EvidenceDetail
+            go={go}
+            back={back}
+            evidence={
+              collectionEvidence.find(
+                (item) => item.id === selectedEvidenceId,
+              ) ?? collectionEvidence[0]
+            }
+            onEdit={() => {
+              setEditingEvidenceId(selectedEvidenceId);
+              go('document');
+            }}
+          />
+        );
       case 'share':
         return <Share back={back} />;
     }
-  }, [screen, captureMode]);
+  }, [
+    screen,
+    captureMode,
+    selectedEvidenceId,
+    collectionEvidence,
+    editingEvidenceId,
+    selectedMissionId,
+    activeMissionId,
+    activeRemix,
+    missionDeck,
+    missionDeckRevealed,
+    missionDeckShuffleRound,
+    completedMissionIds,
+    trophyState,
+    trophyCabinet,
+    trophyEvaluations,
+    lastUnlockedTrophyId,
+    weeklyCase,
+    weeklyCaseProgress,
+  ]);
 
   if (!aLoaded || !iLoaded) return null;
 
@@ -1148,7 +1301,13 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
+  safe: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 393,
+    alignSelf: 'center',
+    backgroundColor: colors.white,
+  },
   screen: { flex: 1, backgroundColor: colors.white },
 
   topBar: {
@@ -1227,34 +1386,90 @@ const styles = StyleSheet.create({
   outlineButtonText: { ...typography.button, color: colors.blue },
 
   stepper: {
-    height: 56,
+    height: 52,
     flexDirection: 'row',
-    gap: 8,
+    gap: 4,
     alignItems: 'center',
   },
   stepItem: {
-    width: 80,
-    height: 48,
+    flex: 1,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 5,
   },
   stepCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepActive: { backgroundColor: colors.blue },
   stepDone: { backgroundColor: colors.limeSubtle },
-  stepNum: { ...typography.tiny, color: colors.muted },
+  stepNum: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 9,
+    lineHeight: 12,
+    color: colors.muted,
+  },
   stepLabel: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 14,
     color: colors.muted,
+  },
+
+  sectionHeading: { gap: 2 },
+  evidenceGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  savedEvidenceCard: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 238,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.white,
+    padding: 12,
+    gap: 6,
+  },
+  savedEvidenceVisual: {
+    height: 90,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  savedEvidenceIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedEvidenceTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.ink,
+  },
+  savedEvidenceMeta: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 8,
+    lineHeight: 12,
+    color: colors.blue,
+  },
+  savedEvidenceNote: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+    lineHeight: 15,
+    color: colors.text,
   },
 
   bottomNav: {
@@ -1531,6 +1746,22 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: '#EDF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sharedPreviewMedia: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sharedPreviewPlayButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#34353C',
     alignItems: 'center',
     justifyContent: 'center',
   },

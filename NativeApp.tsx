@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -6,6 +6,7 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -37,10 +38,25 @@ import {
 import {
   Inter_400Regular,
   Inter_500Medium,
+  Inter_600SemiBold,
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
-import { activeMission } from './src/data';
+import {
+  FEATURED_MISSION_ID,
+  formatEvidenceModes,
+  getMissionById,
+  MISSIONS,
+} from './src/missions';
+import {
+  getDailyDeckKey,
+  getMissionDeck,
+  getMissionRemixById,
+  getNextMissionRemix,
+  getWeeklyCase,
+  getWeeklyCaseProgress,
+  MissionRemix,
+} from './src/missionPlay';
 import {
   clearDraft,
   loadDraft,
@@ -52,8 +68,35 @@ import {
   addCompletedDiscovery,
   CompletedDiscovery,
   loadCompletedDiscoveries,
+  updateCompletedDiscovery,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
+import {
+  DEFAULT_TROPHY_STATE,
+  equipTrophyTitle,
+  evaluateTrophies,
+  getEquippedTitle,
+  loadTrophyState,
+  recordEvidenceRetake,
+  saveTrophyState,
+  syncTrophyState,
+  TrophyDiscovery,
+  TrophyState,
+  visibleTrophyCabinet,
+} from './src/trophySystem';
+import {
+  ProductCollectionScreen,
+  ProductCompleteScreen,
+  ProductDiscoverScreen,
+  ProductDocumentScreen,
+  ProductEvidenceDetailScreen,
+  ProductEvidencePickerScreen,
+  ProductEvidencePreviewScreen,
+  ProductInvestigateScreen,
+  ProductMissionDetailScreen,
+  ProductProfileScreen,
+  ProductTrophiesScreen,
+} from './src/components/FigmaProductScreens';
 
 type Screen =
   | 'discover'
@@ -64,9 +107,22 @@ type Screen =
   | 'preview'
   | 'document'
   | 'complete'
-  | 'discoveries';
+  | 'discoveries'
+  | 'profile'
+  | 'trophies'
+  | 'discovery-detail';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
+
+const MISSION_DRAFT_SCREENS: Screen[] = [
+  'mission',
+  'investigate',
+  'evidence',
+  'capture',
+  'preview',
+  'document',
+  'complete',
+];
 
 type Evidence = {
   type: CaptureMode;
@@ -74,7 +130,7 @@ type Evidence = {
   durationMs?: number;
 };
 
-const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';
+const DEFAULT_OBSERVATION = '';
 const AUDIO_MAX_DURATION_MS = 10_000;
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
@@ -160,6 +216,7 @@ function Stepper({
         const available = index <= maxStep && !disabled;
         const isActive = index === active;
         const isUnlocked = index <= maxStep;
+        const isCompleted = index < active;
 
         return (
           <Pressable
@@ -178,6 +235,7 @@ function Stepper({
               style={[
                 styles.stepDot,
                 isUnlocked && !isActive && styles.stepDotUnlocked,
+                isCompleted && styles.stepDotCompleted,
                 isActive && styles.stepDotActive,
               ]}
             >
@@ -186,6 +244,7 @@ function Stepper({
                   styles.stepNumber,
                   isActive && { color: colors.white },
                   isUnlocked && !isActive && { color: colors.text },
+                  isCompleted && { color: colors.ink },
                 ]}
               >
                 {index + 1}
@@ -195,6 +254,7 @@ function Stepper({
               style={[
                 styles.stepLabel,
                 isUnlocked && !isActive && styles.stepLabelUnlocked,
+                isCompleted && { color: colors.ink },
                 isActive && { color: colors.blue },
               ]}
             >
@@ -240,24 +300,18 @@ function formatDuration(ms = 0) {
   return `${minutes}:${seconds}`;
 }
 
-function VideoEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs?: number }) {
+function VideoEvidencePreview({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, videoPlayer => {
     videoPlayer.loop = false;
   });
 
   return (
-    <View style={styles.mediaReviewWrap}>
-      <VideoView
-        player={player}
-        style={styles.previewVideo}
-        nativeControls
-        contentFit="contain"
-      />
-      <View style={styles.mediaMetaRow}>
-        <Ionicons name="videocam-outline" size={18} color={colors.blue} />
-        <AppText style={styles.mediaMeta}>Video · {formatDuration(durationMs)}</AppText>
-      </View>
-    </View>
+    <VideoView
+      player={player}
+      style={styles.previewVideo}
+      nativeControls
+      contentFit="contain"
+    />
   );
 }
 
@@ -283,14 +337,14 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
   return (
     <View style={styles.audioReviewCard}>
       <View style={styles.audioReviewIcon}>
-        <Ionicons name="mic-outline" size={34} color={colors.blue} />
+        <Ionicons name="mic-outline" size={34} color={colors.white} />
       </View>
       <View style={styles.waveform}>
         {[18, 34, 24, 48, 30, 42, 20, 36, 26, 44, 22].map((height, index) => (
           <View key={index} style={[styles.waveBar, { height }]} />
         ))}
       </View>
-      <AppText style={styles.timer}>
+      <AppText style={[styles.timer, styles.previewTimer]}>
         {formatDuration(currentMs)} / {formatDuration(totalMs)}
       </AppText>
       <Pressable onPress={togglePlayback} style={styles.playButton}>
@@ -305,10 +359,26 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
   );
 }
 
+function toTrophyDiscoveries(items: CompletedDiscovery[]): TrophyDiscovery[] {
+  return items.map((item) => ({
+    missionId: item.missionId,
+    evidenceType: item.evidence.type,
+    observation: item.observation,
+    location: item.location,
+    completedAt: item.completedAt,
+  }));
+}
+
 export default function NativeApp() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
-  const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
+  const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [screen, setScreen] = useState<Screen>('discover');
+  const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
+  const [missionDeckSeed] = useState(() => getDailyDeckKey());
+  const [missionDeckRevealed, setMissionDeckRevealed] = useState(true);
+  const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [facing, setFacing] = useState<CameraType>('back');
@@ -320,9 +390,39 @@ export default function NativeApp() {
   const [observation, setObservation] = useState(DEFAULT_OBSERVATION);
   const [location, setLocation] = useState('');
   const [draftReady, setDraftReady] = useState(false);
-  const [captureOptionsVisible, setCaptureOptionsVisible] = useState(false);
   const [discoveries, setDiscoveries] = useState<CompletedDiscovery[]>([]);
+  const [selectedDiscovery, setSelectedDiscovery] = useState<CompletedDiscovery | null>(null);
+  const [editingDiscoveryId, setEditingDiscoveryId] = useState<string | null>(null);
+  const [editingObservation, setEditingObservation] = useState('');
+  const [editingLocation, setEditingLocation] = useState('');
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
+  const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
+  const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
+
+  const selectedMission = getMissionById(selectedMissionId) ?? MISSIONS[0];
+  const activeMission = getMissionById(activeMissionId);
+  const flowMission = activeMission ?? selectedMission;
+  const completedMissionIds = useMemo(
+    () => [...new Set(discoveries.map((item) => item.missionId))],
+    [discoveries],
+  );
+  const trophyEvaluations = useMemo(
+    () => evaluateTrophies(toTrophyDiscoveries(discoveries), trophyState),
+    [discoveries, trophyState],
+  );
+  const trophyCabinet = useMemo(
+    () => visibleTrophyCabinet(trophyEvaluations),
+    [trophyEvaluations],
+  );
+  const missionDeck = useMemo(
+    () => getMissionDeck(missionDeckSeed, missionDeckShuffleRound, completedMissionIds),
+    [missionDeckSeed, missionDeckShuffleRound, completedMissionIds],
+  );
+  const weeklyCase = useMemo(() => getWeeklyCase(), []);
+  const weeklyCaseProgress = useMemo(
+    () => getWeeklyCaseProgress(discoveries, weeklyCase),
+    [discoveries, weeklyCase],
+  );
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
@@ -339,10 +439,33 @@ export default function NativeApp() {
 
     const restoreDraft = async () => {
       try {
-        const draft = await loadDraft();
-        if (!mounted || !draft) return;
+        const [draft, savedDiscoveries, storedTrophyState] = await Promise.all([
+          loadDraft(),
+          loadCompletedDiscoveries(),
+          loadTrophyState(),
+        ]);
+        if (!mounted) return;
+
+        const syncedTrophies = syncTrophyState(
+          toTrophyDiscoveries(savedDiscoveries),
+          storedTrophyState,
+        );
+        setDiscoveries(savedDiscoveries);
+        setTrophyState(syncedTrophies.state);
+        if (syncedTrophies.state !== storedTrophyState) {
+          await saveTrophyState(syncedTrophies.state).catch(() => undefined);
+        }
+
+        if (!draft) return;
+
+        if (!MISSION_DRAFT_SCREENS.includes(draft.screen as Screen)) {
+          await clearDraft().catch(() => undefined);
+          return;
+        }
 
         const restoredEvidence = draft.evidence as Evidence | null;
+        const restoredMission =
+          getMissionById(draft.missionId) ?? getMissionById(FEATURED_MISSION_ID)!;
         const restoredScreen: Screen =
           draft.screen === 'capture' ||
           draft.screen === 'preview' ||
@@ -355,6 +478,9 @@ export default function NativeApp() {
               : (draft.screen as Screen);
 
         setCaptureMode(draft.captureMode);
+        setSelectedMissionId(restoredMission.id);
+        setActiveMissionId(restoredMission.id);
+        setActiveRemix(getMissionRemixById(restoredMission.id, draft.remixId));
         setEvidence(restoredEvidence);
         setHighestStep(draft.highestStep);
         setSubmitted(draft.submitted);
@@ -382,14 +508,12 @@ export default function NativeApp() {
       return;
     }
 
-    const hasProgress =
-      screen !== 'discover' ||
-      highestStep > 0 ||
-      Boolean(evidence) ||
-      location.length > 0 ||
-      observation !== DEFAULT_OBSERVATION;
-
-    if (!hasProgress) return;
+    // Browsing saved work must never replace the user's active mission draft.
+    if (
+      editingDiscoveryId ||
+      !activeMissionId ||
+      !MISSION_DRAFT_SCREENS.includes(screen)
+    ) return;
 
     const restorableScreen =
       screen === 'capture' || screen === 'preview'
@@ -400,6 +524,8 @@ export default function NativeApp() {
 
     const timer = setTimeout(() => {
       saveDraft({
+        missionId: activeMissionId,
+        remixId: activeRemix?.id,
         screen: restorableScreen,
         captureMode,
         evidence,
@@ -420,6 +546,9 @@ export default function NativeApp() {
     submitted,
     observation,
     location,
+    editingDiscoveryId,
+    activeMissionId,
+    activeRemix,
   ]);
 
   useEffect(() => {
@@ -440,6 +569,56 @@ export default function NativeApp() {
     setHighestStep(current => Math.max(current, step));
   };
 
+  const openMissionDetail = (missionId: string) => {
+    if (!getMissionById(missionId)) return;
+    setSelectedMissionId(missionId);
+    setScreen('mission');
+  };
+
+  const activateSelectedMission = async () => {
+    if (activeMissionId && activeMissionId !== selectedMission.id) {
+      await clearDraft(evidence).catch(() => undefined);
+    }
+    setActiveMissionId(selectedMission.id);
+    setActiveRemix(null);
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(1);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode(selectedMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    setScreen('investigate');
+  };
+
+  const beginSelectedMission = () => {
+    if (activeMissionId === selectedMission.id && highestStep > 0) {
+      setScreen(
+        evidence ? 'document' : highestStep >= 2 ? 'evidence' : 'investigate',
+      );
+      return;
+    }
+
+    const replacingActiveMission =
+      activeMissionId &&
+      activeMissionId !== selectedMission.id &&
+      (highestStep > 0 || Boolean(evidence));
+
+    if (!replacingActiveMission) {
+      void activateSelectedMission();
+      return;
+    }
+
+    Alert.alert(
+      'Start a different mission?',
+      'Find Out keeps one active mission at a time. Starting this mission will remove the current draft.',
+      [
+        { text: 'Keep current', style: 'cancel' },
+        { text: 'Start mission', style: 'destructive', onPress: () => void activateSelectedMission() },
+      ],
+    );
+  };
+
   const getRestorableScreen = (): Screen => {
     if (screen === 'capture' || screen === 'preview') {
       return evidence ? 'document' : 'investigate';
@@ -453,6 +632,8 @@ export default function NativeApp() {
     suppressDiscoverAutosave.current = true;
     try {
       await saveDraft({
+        missionId: activeMissionId ?? flowMission.id,
+        remixId: activeRemix?.id,
         screen: getRestorableScreen(),
         captureMode,
         evidence,
@@ -471,6 +652,7 @@ export default function NativeApp() {
     if (index > highestStep || isVideoRecording || audioState.isRecording) return;
 
     if (index === 0) {
+      setSelectedMissionId(flowMission.id);
       setScreen('mission');
       return;
     }
@@ -669,8 +851,11 @@ export default function NativeApp() {
     setHighestStep(0);
     setObservation(DEFAULT_OBSERVATION);
     setLocation('');
-    setCaptureMode('audio');
-    setCaptureOptionsVisible(false);
+    setCaptureMode('photo');
+    setActiveMissionId(null);
+    setActiveRemix(null);
+    setSelectedMissionId(FEATURED_MISSION_ID);
+    setLastUnlockedTrophyId(null);
     setScreen('discover');
   };
 
@@ -680,20 +865,127 @@ export default function NativeApp() {
     setScreen('discoveries');
   };
 
+  const startMissionRemix = async () => {
+    const previous = discoveries.find((item) => item.missionId === flowMission.id);
+    const completionCount = discoveries.filter(
+      (item) => item.missionId === flowMission.id,
+    ).length;
+    const remix = getNextMissionRemix(
+      flowMission.id,
+      completionCount,
+      previous?.evidence.type,
+    );
+    await clearDraft(evidence).catch(() => undefined);
+    setSelectedMissionId(flowMission.id);
+    setActiveMissionId(flowMission.id);
+    setActiveRemix(remix);
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(1);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode(remix.evidenceMode ?? flowMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    setScreen('investigate');
+  };
+
+  const openDiscoveryDetail = (id: string) => {
+    const selected = discoveries.find(item => item.id === id);
+    if (!selected) return;
+    setSelectedDiscovery(selected);
+    setScreen('discovery-detail');
+  };
+
+  const editSelectedDiscovery = () => {
+    if (!selectedDiscovery) return;
+    setEditingDiscoveryId(selectedDiscovery.id);
+    setEditingObservation(selectedDiscovery.observation);
+    setEditingLocation(selectedDiscovery.location);
+    setScreen('document');
+  };
+
+  const cancelEditingDiscovery = () => {
+    setEditingDiscoveryId(null);
+    setEditingObservation('');
+    setEditingLocation('');
+    setScreen('discovery-detail');
+  };
+
+  const shareSelectedDiscovery = async () => {
+    if (!selectedDiscovery) return;
+    try {
+      await Share.share({
+        message: `${selectedDiscovery.missionTitle}\n\n${selectedDiscovery.observation}`,
+      });
+    } catch {
+      Alert.alert('Could not share discovery', 'Please try the share button again.');
+    }
+  };
+
+  const retakeEvidence = async () => {
+    const nextState = recordEvidenceRetake(trophyState, flowMission.id);
+    setTrophyState(nextState);
+    await saveTrophyState(nextState).catch(() => undefined);
+    setScreen('capture');
+  };
+
+  const handleEquipTitle = async (trophyId: string) => {
+    const trophy = trophyEvaluations.find(
+      (item) => item.definition.id === trophyId && item.unlocked,
+    );
+    if (!trophy) return;
+    const nextState = equipTrophyTitle(trophyState, trophyId);
+    setTrophyState(nextState);
+    await saveTrophyState(nextState).catch(() => undefined);
+  };
+
   const submitDiscovery = async () => {
-    if (!evidence || submittingDiscovery) return;
+    if (submittingDiscovery || (!editingDiscoveryId && !evidence)) return;
 
     setSubmittingDiscovery(true);
     try {
+      if (editingDiscoveryId) {
+        const updated = await updateCompletedDiscovery(editingDiscoveryId, {
+          observation: editingObservation,
+          location: editingLocation,
+        });
+        const nextDiscoveries = discoveries.map(item =>
+          item.id === updated.id ? updated : item,
+        );
+        const synced = syncTrophyState(toTrophyDiscoveries(nextDiscoveries), trophyState);
+        setDiscoveries(nextDiscoveries);
+        setTrophyState(synced.state);
+        await saveTrophyState(synced.state).catch(() => undefined);
+        setSelectedDiscovery(updated);
+        setEditingDiscoveryId(null);
+        setEditingObservation('');
+        setEditingLocation('');
+        setScreen('discovery-detail');
+        return;
+      }
+
+      if (!evidence) return;
+
       const completed = await addCompletedDiscovery({
-        missionId: activeMission.id,
-        missionTitle: activeMission.title,
-        category: activeMission.category,
+        missionId: flowMission.id,
+        missionTitle: flowMission.title,
+        category: `${flowMission.difficulty.toUpperCase()} MISSION`,
         observation,
         location,
         evidence,
       });
-      setDiscoveries(current => [completed, ...current.filter(item => item.id !== completed.id)]);
+      const nextDiscoveries = [
+        completed,
+        ...discoveries.filter(item => item.id !== completed.id),
+      ];
+      const synced = syncTrophyState(toTrophyDiscoveries(nextDiscoveries), trophyState);
+      setDiscoveries(nextDiscoveries);
+      setTrophyState(synced.state);
+      setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
+      await saveTrophyState(synced.state).catch(() => undefined);
+      await clearDraft(evidence).catch(() => undefined);
+      setEvidence(null);
+      setActiveMissionId(null);
       setSubmitted(true);
       updateHighestStep(3);
       setScreen('complete');
@@ -869,100 +1161,107 @@ export default function NativeApp() {
 
   if (screen === 'capture') return renderCapture();
 
-  if (screen === 'preview' && evidence) {
+  if (screen === 'discovery-detail' && selectedDiscovery) {
+    const selectedIndex = discoveries.findIndex(item => item.id === selectedDiscovery.id);
+    const day = selectedIndex <= 0 ? 'TODAY' : 'EARLIER';
+    const media =
+      selectedDiscovery.evidence.type === 'photo' ? (
+        <Image
+          source={{ uri: selectedDiscovery.evidence.uri }}
+          style={styles.previewImage}
+        />
+      ) : selectedDiscovery.evidence.type === 'video' ? (
+        <VideoEvidencePreview uri={selectedDiscovery.evidence.uri} />
+      ) : (
+        <AudioEvidencePreview
+          uri={selectedDiscovery.evidence.uri}
+          durationMs={selectedDiscovery.evidence.durationMs}
+        />
+      );
+
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Review evidence"
+        <ProductEvidenceDetailScreen
+          title={selectedDiscovery.missionTitle}
+          day={day}
+          note={selectedDiscovery.observation}
+          media={media}
+          onBack={() => setScreen('discoveries')}
+          onEdit={editSelectedDiscovery}
+          onShare={() => void shareSelectedDiscovery()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'preview' && evidence) {
+    const mediaLabel =
+      evidence.type === 'photo'
+        ? 'PHOTO'
+        : evidence.type === 'video'
+          ? `VIDEO · ${formatDuration(evidence.durationMs ?? 0)}`
+          : `AUDIO · ${formatDuration(evidence.durationMs ?? 0)}`;
+
+    const media =
+      evidence.type === 'photo' ? (
+        <Image source={{ uri: evidence.uri }} style={styles.previewImage} />
+      ) : evidence.type === 'video' ? (
+        <VideoEvidencePreview uri={evidence.uri} />
+      ) : (
+        <AudioEvidencePreview uri={evidence.uri} durationMs={evidence.durationMs} />
+      );
+
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ProductEvidencePreviewScreen
+          media={media}
+          mediaLabel={mediaLabel}
           onBack={() => setScreen('capture')}
           onExit={exitMissionToHome}
+          onUse={() => setScreen('document')}
+          onRetake={() => void retakeEvidence()}
         />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={1} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.h1}>Check your evidence</AppText>
-          <AppText style={styles.body}>
-            Play it back or review it before you continue to your field note.
-          </AppText>
-
-          {evidence.type === 'photo' ? (
-            <View style={styles.previewPanel}>
-              <Image source={{ uri: evidence.uri }} style={styles.previewImage} />
-            </View>
-          ) : evidence.type === 'video' ? (
-            <VideoEvidencePreview uri={evidence.uri} durationMs={evidence.durationMs} />
-          ) : (
-            <AudioEvidencePreview uri={evidence.uri} durationMs={evidence.durationMs} />
-          )}
-
-          <AppText style={styles.centerMeta}>Saved locally on this device for this draft.</AppText>
-          <PrimaryButton label="Use this evidence" onPress={() => setScreen('document')} />
-          <PrimaryButton outline label="Retake" onPress={() => setScreen('capture')} />
-        </ScrollView>
       </SafeAreaView>
     );
   }
 
   if (screen === 'document') {
+    const editingDiscovery = Boolean(editingDiscoveryId);
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Document"
-          onBack={() => setScreen(evidence ? 'preview' : 'investigate')}
-          onExit={exitMissionToHome}
+        <ProductDocumentScreen
+          observation={editingDiscovery ? editingObservation : observation}
+          location={editingDiscovery ? editingLocation : location}
+          onChangeObservation={
+            editingDiscovery ? setEditingObservation : setObservation
+          }
+          onChangeLocation={editingDiscovery ? setEditingLocation : setLocation}
+          onBack={
+            editingDiscovery
+              ? cancelEditingDiscovery
+              : () => setScreen(evidence ? 'preview' : 'investigate')
+          }
+          onExit={editingDiscovery ? undefined : exitMissionToHome}
+          onDiscard={editingDiscovery ? undefined : resetMission}
+          onSubmit={submitDiscovery}
+          onStepPress={editingDiscovery ? undefined : goToStep}
+          maxStep={editingDiscovery ? 2 : highestStep}
+          submitLabel={
+            submittingDiscovery
+              ? editingDiscovery
+                ? 'Saving changes…'
+                : 'Saving discovery…'
+              : editingDiscovery
+                ? 'Save changes'
+                : 'Submit discovery'
+          }
+          submitDisabled={
+            submittingDiscovery ||
+            (editingDiscovery
+              ? editingObservation.trim().length === 0
+              : !evidence)
+          }
         />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.eyebrow}>FIELD NOTE · 03</AppText>
-          <AppText style={styles.h1}>Describe what you found</AppText>
-          <AppText style={styles.body}>
-            Add just enough context for someone else to understand what you found.
-          </AppText>
-          <View style={styles.field}>
-            <AppText style={styles.label}>Observation</AppText>
-            <TextInput
-              multiline
-              value={observation}
-              onChangeText={setObservation}
-              style={styles.input}
-            />
-          </View>
-          <View style={styles.field}>
-            <AppText style={styles.label}>Location</AppText>
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Optional place name"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
-            />
-          </View>
-
-          {evidence ? (
-            <Pressable style={styles.linkedEvidence} onPress={() => setScreen('preview')}>
-              <Ionicons name="play-circle-outline" size={28} color={colors.blue} />
-              <View style={{ flex: 1 }}>
-                <AppText style={styles.label}>{evidence.type.toUpperCase()} evidence linked</AppText>
-                <AppText style={styles.smallMuted}>
-                  {evidence.type === 'photo'
-                    ? 'Tap to review photo'
-                    : `Tap to play again · ${formatDuration(evidence.durationMs)}`}
-                </AppText>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-            </Pressable>
-          ) : null}
-
-          <View style={styles.draftNote}>
-            <Ionicons name="cloud-done-outline" size={18} color={colors.blue} />
-            <AppText style={styles.smallMuted}>Draft saves automatically on this device.</AppText>
-          </View>
-
-          <PrimaryButton
-            label={submittingDiscovery ? 'Saving discovery…' : 'Submit discovery'}
-            disabled={!evidence || submittingDiscovery}
-            onPress={submitDiscovery}
-          />
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -970,141 +1269,40 @@ export default function NativeApp() {
   if (screen === 'complete') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Mission complete" onExit={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={3} maxStep={highestStep} onStepPress={goToStep} />
-          <View style={styles.completeWrap}>
-            <View style={styles.successCircle}>
-              <Ionicons name="checkmark" size={34} color={colors.ink} />
-            </View>
-            <AppText style={styles.h1}>Discovery submitted</AppText>
-            <AppText style={styles.body}>
-              Your evidence has been captured and attached to this mission entry.
-            </AppText>
-            {evidence ? (
-              <PrimaryButton outline label="Review submitted evidence" onPress={() => setScreen('preview')} />
-            ) : null}
-            <PrimaryButton outline label="View My Discoveries" onPress={openMyDiscoveries} />
-            <PrimaryButton label="Explore another mission" onPress={resetMission} />
-          </View>
-        </ScrollView>
+        <ProductCompleteScreen
+          onClose={() => setScreen('discover')}
+          onOtherDiscoveries={openMyDiscoveries}
+          onRemix={() => void startMissionRemix()}
+          onExplore={resetMission}
+          unlockedTrophy={
+            trophyEvaluations.find(
+              (item) => item.definition.id === lastUnlockedTrophyId,
+            )?.definition ?? null
+          }
+        />
       </SafeAreaView>
     );
   }
 
   if (screen === 'discoveries') {
-    const latestDiscovery = discoveries[0];
-    const earlierDiscoveries = discoveries.slice(1);
-
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="My Discoveries" onBack={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <AppText style={styles.eyebrow}>MY DISCOVERIES</AppText>
-          <AppText style={styles.h1}>What caught your attention.</AppText>
-          <AppText style={styles.body}>A record of the things you chose to notice.</AppText>
-
-          <View style={styles.archiveSummary}>
-            <View>
-              <AppText style={styles.archiveCount}>{discoveries.length.toString().padStart(2, '0')}</AppText>
-              <AppText style={styles.archiveLabel}>
-                {discoveries.length === 1 ? 'DISCOVERY' : 'DISCOVERIES'}
-              </AppText>
-            </View>
-            <View style={styles.archiveSavedRow}>
-              <View style={styles.archiveDot} />
-              <AppText style={styles.smallMuted}>SAVED ON THIS DEVICE</AppText>
-            </View>
-          </View>
-
-          {discoveries.length === 0 ? (
-            <View style={styles.emptyJournalCard}>
-              <Ionicons name="bookmark-outline" size={30} color={colors.blue} />
-              <AppText style={styles.h3}>Your field journal starts here</AppText>
-              <AppText style={styles.body}>Finish a mission and your first discovery will appear here.</AppText>
-            </View>
-          ) : latestDiscovery ? (
-            <>
-              <AppText style={styles.sectionLabel}>LATEST DISCOVERY</AppText>
-              <View style={styles.featuredDiscovery}>
-                <View style={styles.featuredMedia}>
-                  {latestDiscovery.evidence.type === 'photo' ? (
-                    <Image source={{ uri: latestDiscovery.evidence.uri }} style={styles.featuredImage} />
-                  ) : latestDiscovery.evidence.type === 'audio' ? (
-                    <View style={styles.featuredAudio}>
-                      <Ionicons name="mic-outline" size={34} color={colors.blue} />
-                      <View style={styles.featuredWaveform}>
-                        {[24, 48, 34, 70, 42, 58, 30, 64, 38, 52, 28].map((height, index) => (
-                          <View key={index} style={[styles.featuredWaveBar, { height }]} />
-                        ))}
-                      </View>
-                      <AppText style={styles.archiveLabel}>AUDIO EVIDENCE</AppText>
-                    </View>
-                  ) : (
-                    <View style={styles.featuredVideo}>
-                      <View style={styles.videoBadge}>
-                        <Ionicons name="videocam-outline" size={34} color={colors.blue} />
-                      </View>
-                      <AppText style={styles.archiveLabel}>VIDEO EVIDENCE</AppText>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.featuredBody}>
-                  <View style={styles.featuredMetaRow}>
-                    <View style={styles.badge}>
-                      <AppText style={styles.badgeText}>{latestDiscovery.category}</AppText>
-                    </View>
-                    <AppText style={styles.discoveryNumber}>01</AppText>
-                  </View>
-                  <AppText style={styles.h2}>{latestDiscovery.missionTitle}</AppText>
-                  <AppText style={styles.featuredObservation}>{latestDiscovery.observation}</AppText>
-                  <View style={styles.featuredFooter}>
-                    <AppText style={styles.smallMuted}>{latestDiscovery.location || 'Location not added'}</AppText>
-                    <AppText style={styles.smallMuted}>{new Date(latestDiscovery.completedAt).toLocaleDateString()}</AppText>
-                  </View>
-                  <View style={styles.fieldNoteStamp}>
-                    <Ionicons name="checkmark-circle-outline" size={18} color={colors.blue} />
-                    <AppText style={styles.archiveLabel}>FIELD NOTE · SAVED</AppText>
-                  </View>
-                </View>
-              </View>
-
-              {earlierDiscoveries.length > 0 ? (
-                <>
-                  <AppText style={styles.sectionLabel}>EARLIER DISCOVERIES</AppText>
-                  {earlierDiscoveries.map((item, index) => (
-                    <View key={item.id} style={styles.discoveryCard}>
-                      <View style={styles.discoveryMedia}>
-                        {item.evidence.type === 'photo' ? (
-                          <Image source={{ uri: item.evidence.uri }} style={styles.discoveryImage} />
-                        ) : (
-                          <Ionicons
-                            name={item.evidence.type === 'video' ? 'videocam-outline' : 'mic-outline'}
-                            size={30}
-                            color={colors.blue}
-                          />
-                        )}
-                      </View>
-                      <View style={{ flex: 1, gap: 5 }}>
-                        <View style={styles.earlierMetaRow}>
-                          <AppText style={styles.eyebrow}>{item.category}</AppText>
-                          <AppText style={styles.smallMuted}>{(index + 2).toString().padStart(2, '0')}</AppText>
-                        </View>
-                        <AppText style={styles.h3}>{item.missionTitle}</AppText>
-                        <AppText style={styles.body}>{item.observation}</AppText>
-                        <AppText style={styles.smallMuted}>
-                          {item.location ? `${item.location} · ` : ''}
-                          {new Date(item.completedAt).toLocaleDateString()}
-                        </AppText>
-                      </View>
-                    </View>
-                  ))}
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </ScrollView>
+        <ProductCollectionScreen
+          activeMissionTitle={!submitted ? activeMission?.title : null}
+          evidence={discoveries.map((item, index) => ({
+            id: item.id,
+            day: index === 0 ? 'TODAY' : 'EARLIER',
+            title: item.missionTitle,
+            note: item.observation,
+            mediaUri: item.evidence.type === 'photo' ? item.evidence.uri : undefined,
+          }))}
+          onContinue={() =>
+            setScreen(evidence ? 'document' : highestStep >= 2 ? 'evidence' : 'investigate')
+          }
+          onEvidence={openDiscoveryDetail}
+          onDiscover={() => setScreen('discover')}
+          onProfile={() => setScreen('profile')}
+        />
       </SafeAreaView>
     );
   }
@@ -1112,30 +1310,18 @@ export default function NativeApp() {
   if (screen === 'evidence') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Capture evidence"
+        <ProductEvidencePickerScreen
           onBack={() => setScreen('investigate')}
           onExit={exitMissionToHome}
+          onSelect={goCapture}
+          allowedModes={
+            activeRemix?.evidenceMode
+              ? [activeRemix.evidenceMode]
+              : flowMission.evidenceModes
+          }
+          onStepPress={goToStep}
+          maxStep={highestStep}
         />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={2} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.h1}>Capture what you found</AppText>
-          <AppText style={styles.body}>Choose the format that best shows your discovery.</AppText>
-          <View style={styles.captureOptions}>
-            {([
-              ['photo', 'camera-outline', 'Photo'],
-              ['video', 'videocam-outline', 'Video'],
-              ['audio', 'mic-outline', 'Audio'],
-            ] as const).map(([mode, icon, label]) => (
-              <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
-                <View style={styles.optionIcon}>
-                  <Ionicons name={icon} size={28} color={colors.blue} />
-                </View>
-                <AppText style={styles.label}>{label}</AppText>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -1143,52 +1329,18 @@ export default function NativeApp() {
   if (screen === 'investigate') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar
-          title="Investigate"
+        <ProductInvestigateScreen
+          question={flowMission.question}
+          remix={activeRemix}
           onBack={() => setScreen('mission')}
           onExit={exitMissionToHome}
+          onFound={() => {
+            updateHighestStep(2);
+            setScreen('evidence');
+          }}
+          onStepPress={goToStep}
+          maxStep={highestStep}
         />
-        <ScrollView contentContainerStyle={styles.content}>
-          <Stepper active={1} maxStep={highestStep} onStepPress={goToStep} />
-          <AppText style={styles.h1}>Follow the signal</AppText>
-          <AppText style={styles.body}>Move slowly. Let one detail lead you to the next.</AppText>
-          <View style={styles.questionCard}>
-            <AppText style={styles.eyebrow}>YOUR MISSION</AppText>
-            <AppText style={styles.h3}>What familiar sound are you following?</AppText>
-          </View>
-          <View style={styles.guidanceCard}>
-            <AppText style={styles.label}>Pay closer attention</AppText>
-            <AppText style={styles.body}>Notice what stands out, then decide what matters.</AppText>
-          </View>
-          {!captureOptionsVisible ? (
-            <PrimaryButton
-              label="I found something"
-              onPress={() => setCaptureOptionsVisible(true)}
-            />
-          ) : (
-            <View style={styles.questionCard}>
-              <AppText style={styles.eyebrow}>CAPTURE WHAT YOU FOUND</AppText>
-              <AppText style={styles.body}>
-                Choose the format that best shows your discovery.
-              </AppText>
-              <View style={styles.captureOptions}>
-                {([
-                  ['photo', 'camera-outline', 'Photo'],
-                  ['video', 'videocam-outline', 'Video'],
-                  ['audio', 'mic-outline', 'Audio'],
-                ] as const).map(([mode, icon, label]) => (
-                  <Pressable key={mode} style={styles.captureOption} onPress={() => goCapture(mode)}>
-                    <View style={styles.optionIcon}>
-                      <Ionicons name={icon} size={28} color={colors.blue} />
-                    </View>
-                    <AppText style={styles.label}>{label}</AppText>
-                  </Pressable>
-                ))}
-              </View>
-              <AppText style={styles.smallMuted}>Nothing is submitted until Step 4.</AppText>
-            </View>
-          )}
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -1196,61 +1348,77 @@ export default function NativeApp() {
   if (screen === 'mission') {
     return (
       <SafeAreaView style={styles.safe}>
-        <TopBar title="Mission" onBack={() => setScreen('discover')} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.category}</AppText>
-          </View>
-          <AppText style={styles.h1}>{activeMission.title}</AppText>
-          <AppText style={styles.body}>{activeMission.summary}</AppText>
-          <Stepper active={0} maxStep={highestStep} onStepPress={goToStep} />
-          <View style={styles.clueCard}>
-            <AppText style={styles.eyebrow}>CLUE 01 · OPEN</AppText>
-            <AppText style={styles.h3}>{activeMission.question}</AppText>
-            <AppText style={styles.body}>{activeMission.guidance}</AppText>
-          </View>
-          <PrimaryButton
-            label="Open the mission"
-            onPress={() => {
-              updateHighestStep(1);
-              setScreen('investigate');
-            }}
-          />
-        </ScrollView>
+        <ProductMissionDetailScreen
+          number={selectedMission.number}
+          difficulty={selectedMission.difficulty.toUpperCase()}
+          evidence={formatEvidenceModes(selectedMission.evidenceModes)}
+          title={selectedMission.title}
+          summary={selectedMission.prompt}
+          question={selectedMission.question}
+          guidance={`${selectedMission.find} ${selectedMission.investigate}`}
+          onBack={() => setScreen('discover')}
+          onOpen={beginSelectedMission}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'profile') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ProductProfileScreen
+          stats={`${discoveries.length} discoveries  ·  ${completedMissionIds.length} missions completed`}
+          equippedTitle={getEquippedTitle(trophyState)}
+          trophySummary={{
+            unlocked: trophyCabinet.filter((item) => item.unlocked).length,
+            total: trophyCabinet.length,
+            featuredName: trophyCabinet.find((item) => item.equipped)?.definition.name ??
+              trophyCabinet.find((item) => item.unlocked)?.definition.name,
+            featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
+              trophyCabinet.find((item) => item.unlocked)?.definition.description,
+          }}
+          weeklyCase={{
+            progress: weeklyCaseProgress,
+            total: weeklyCase.requiredDifficulties.length,
+            missionTitles: weeklyCase.requiredDifficulties,
+          }}
+          onDiscover={() => setScreen('discover')}
+          onCollection={openMyDiscoveries}
+          onTrophies={() => setScreen('trophies')}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (screen === 'trophies') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ProductTrophiesScreen
+          trophies={trophyCabinet}
+          onEquipTitle={(trophyId) => void handleEquipTitle(trophyId)}
+          onBack={() => setScreen('profile')}
+          onDiscover={() => setScreen('discover')}
+          onCollection={openMyDiscoveries}
+        />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
-      <TopBar title="FIND OUT" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <AppText style={styles.h1}>Something familiar. Something unnoticed.</AppText>
-        <AppText style={styles.body}>Open one mission and investigate it your way.</AppText>
-        <Pressable style={styles.missionCard} onPress={() => setScreen('mission')}>
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>{activeMission.category}</AppText>
-          </View>
-          <AppText style={styles.h3}>{activeMission.title}</AppText>
-          <AppText style={styles.body}>{activeMission.hook}</AppText>
-          <AppText style={styles.openMission}>OPEN MISSION →</AppText>
-        </Pressable>
-        <Pressable style={styles.linkedEvidence} onPress={openMyDiscoveries}>
-          <Ionicons name="bookmark-outline" size={26} color={colors.blue} />
-          <View style={{ flex: 1 }}>
-            <AppText style={styles.label}>My Discoveries</AppText>
-            <AppText style={styles.smallMuted}>Your completed field notes</AppText>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-        </Pressable>
-        <View style={styles.nativeNote}>
-          <Ionicons name="phone-portrait-outline" size={22} color={colors.blue} />
-          <AppText style={styles.body}>
-            Native MVP: camera, video and audio capture use the real device hardware.
-          </AppText>
-        </View>
-      </ScrollView>
+      <ProductDiscoverScreen
+        missions={MISSIONS}
+        missionDeck={missionDeck}
+        missionDeckRevealed={missionDeckRevealed}
+        refreshesRemaining={Math.max(0, 2 - missionDeckShuffleRound)}
+        activeMissionId={activeMissionId}
+        completedMissionIds={completedMissionIds}
+        onDrawMissionDeck={() => setMissionDeckRevealed(true)}
+        onShuffleMissionDeck={() => setMissionDeckShuffleRound((round) => Math.min(2, round + 1))}
+        onOpenMission={openMissionDetail}
+        onCollection={openMyDiscoveries}
+        onProfile={() => setScreen('profile')}
+      />
     </SafeAreaView>
   );
 }
@@ -1312,6 +1480,10 @@ const styles = StyleSheet.create({
   stepDotUnlocked: {
     backgroundColor: colors.white,
     borderColor: colors.borderStrong,
+  },
+  stepDotCompleted: {
+    backgroundColor: colors.limeSubtle,
+    borderColor: colors.limeSubtle,
   },
   stepDotActive: { backgroundColor: colors.blue, borderColor: colors.blue },
   stepNumber: { fontFamily: 'Inter_500Medium', fontSize: 12, color: colors.muted },
@@ -1431,40 +1603,36 @@ const styles = StyleSheet.create({
   waveBar: { width: 4, borderRadius: 2, backgroundColor: colors.blue },
   timer: { fontFamily: 'Inter_700Bold', fontSize: 20 },
   centerMeta: { ...typography.small, color: colors.muted, textAlign: 'center' },
-  previewPanel: {
-    minHeight: 360,
-    borderRadius: radius.lg,
-    backgroundColor: colors.soft,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewImage: { width: '100%', height: 360, resizeMode: 'contain', backgroundColor: colors.soft },
-  mediaReviewWrap: { gap: 12 },
-  previewVideo: {
+  previewImage: {
     width: '100%',
-    height: 360,
-    borderRadius: radius.lg,
+    height: '100%',
+    resizeMode: 'contain',
     backgroundColor: colors.ink,
   },
-  mediaMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  mediaMeta: { ...typography.label, color: colors.text },
+  previewVideo: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.ink,
+  },
   audioReviewCard: {
-    minHeight: 330,
-    borderRadius: radius.lg,
-    backgroundColor: colors.soft,
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 22,
+    gap: 18,
     padding: 24,
   },
   audioReviewIcon: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.blueSubtle,
+    backgroundColor: '#34353C',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  previewTimer: {
+    color: colors.white,
   },
   playButton: {
     minHeight: 48,

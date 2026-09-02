@@ -400,16 +400,29 @@ export function ProductDiscoverScreen({
   };
 
   const renderDeckCard = (card: MissionDeckCard) => {
-    if (!card.isWildCard) return renderMission(card.mission);
+    if (!card.isWildCard) {
+      return (
+        <MissionCard
+          key={card.mission.id}
+          state="default"
+          category={card.mission.difficulty.toUpperCase()}
+          title={card.mission.title}
+          description={card.mission.prompt}
+          progressLabel="VIEW MISSION →"
+          progress={0}
+          onPress={() => onOpenMission(card.mission.id)}
+        />
+      );
+    }
 
     return (
       <MissionCard
         key={card.mission.id}
         state="default"
-        category="WILD CARD · UNKNOWN"
+        category="? · UNKNOWN"
         title="Unknown signal"
-        description="One question remains hidden. Open this card to reveal the mission."
-        progressLabel="Accept to reveal"
+        description="Mission hidden until opened."
+        progressLabel="REVEAL →"
         progress={0}
         onPress={() => onOpenMission(card.mission.id)}
       />
@@ -424,9 +437,10 @@ export function ProductDiscoverScreen({
         contentContainerStyle={styles.discoverContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.titleBlock}>
-          <Text style={styles.h1}>Something familiar. Something unnoticed.</Text>
-          <Text style={styles.body}>Draw five questions. Choose one, then decide where to begin.</Text>
+        <View style={styles.deckIntro}>
+          <Text style={styles.deckHeading}>MISSION DECK</Text>
+          <Text style={styles.deckBody}>Choose one mission. You decide where to begin.</Text>
+          <Text style={styles.deckCount}>5 of {missions.length} missions</Text>
         </View>
 
         {activeMission && !deckContainsActive ? (
@@ -435,25 +449,6 @@ export function ProductDiscoverScreen({
             {renderMission(activeMission)}
           </>
         ) : null}
-
-        <SectionLabel>MISSION DECK · 5 / {missions.length} IN PLAY</SectionLabel>
-        <View style={styles.missionDeckPanel}>
-          <View style={styles.missionDeckHeader}>
-            <View style={styles.missionDeckIcon}>
-              <Ionicons name="shuffle-outline" size={24} color={colors.blue} />
-            </View>
-            <View style={styles.missionDeckCopy}>
-              <Text style={styles.missionDeckTitle}>
-                {missionDeckRevealed ? 'Choose one signal to investigate' : 'Let chance narrow the choice'}
-              </Text>
-              <Text style={styles.missionDeckBody}>
-                {missionDeckRevealed
-                  ? 'Two Easy, one Medium, one Hard, and one unknown. You still decide where to begin.'
-                  : 'Draw five questions without receiving a destination or recommended place.'}
-              </Text>
-            </View>
-          </View>
-        </View>
 
         {missionDeckRevealed ? missionDeck.map(renderDeckCard) : null}
         {missionDeckRevealed && onShuffleMissionDeck ? (
@@ -1693,6 +1688,26 @@ const styles = StyleSheet.create({
   actionButtonTextDisabled: { color: colors.muted },
 
   titleBlock: { width: '100%', gap: 24 },
+  deckIntro: { width: '100%', gap: 8, paddingBottom: 4 },
+  deckHeading: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 30,
+    lineHeight: 36,
+  },
+  deckBody: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    lineHeight: 23,
+  },
+  deckCount: {
+    color: colors.muted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
   h1: {
     color: colors.ink,
     fontFamily: 'Archivo_600SemiBold',

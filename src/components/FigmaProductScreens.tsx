@@ -16,6 +16,7 @@ import {
   MissionDefinition,
   MissionEvidenceMode,
 } from '../missions';
+import { MissionDeckCard } from '../missionPlay';
 import { MissionRemix } from '../missionPlay';
 import {
   DEFAULT_USER_PREFERENCES,
@@ -336,7 +337,7 @@ export function ProductOnboardingScreen({
 
 type ProductDiscoverScreenProps = {
   missions: MissionDefinition[];
-  missionDeck?: MissionDefinition[];
+  missionDeck?: MissionDeckCard[];
   missionDeckRevealed?: boolean;
   canShuffleMissionDeck?: boolean;
   activeMissionId?: string | null;
@@ -363,7 +364,7 @@ export function ProductDiscoverScreen({
 }: ProductDiscoverScreenProps) {
   const completedSet = new Set(completedMissionIds);
   const activeMission = missions.find((mission) => mission.id === activeMissionId);
-  const deckContainsActive = missionDeck.some((mission) => mission.id === activeMissionId);
+  const deckContainsActive = missionDeck.some((card) => card.mission.id === activeMissionId);
 
   const renderMission = (mission: MissionDefinition) => {
     const completed = completedSet.has(mission.id);
@@ -390,6 +391,23 @@ export function ProductDiscoverScreen({
     );
   };
 
+  const renderDeckCard = (card: MissionDeckCard) => {
+    if (!card.isWildCard) return renderMission(card.mission);
+
+    return (
+      <MissionCard
+        key={card.mission.id}
+        state="default"
+        category="WILD CARD · UNKNOWN"
+        title="Unknown signal"
+        description="One question remains hidden. Open this card to reveal the mission."
+        progressLabel="Accept to reveal"
+        progress={0}
+        onPress={() => onOpenMission(card.mission.id)}
+      />
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <FigmaTopBar title="FIND OUT" type="root" onTrailing={onProfile} />
@@ -400,7 +418,7 @@ export function ProductDiscoverScreen({
       >
         <View style={styles.titleBlock}>
           <Text style={styles.h1}>Something familiar. Something unnoticed.</Text>
-          <Text style={styles.body}>Draw three questions. Choose one, then decide where to begin.</Text>
+          <Text style={styles.body}>Draw five questions. Choose one, then decide where to begin.</Text>
         </View>
 
         {activeMission && !deckContainsActive ? (
@@ -410,7 +428,7 @@ export function ProductDiscoverScreen({
           </>
         ) : null}
 
-        <SectionLabel>MISSION DECK · {missions.length} IN THE POOL</SectionLabel>
+        <SectionLabel>MISSION DECK · 5 / {missions.length} IN PLAY</SectionLabel>
         <View style={styles.missionDeckPanel}>
           <View style={styles.missionDeckHeader}>
             <View style={styles.missionDeckIcon}>
@@ -418,26 +436,26 @@ export function ProductDiscoverScreen({
             </View>
             <View style={styles.missionDeckCopy}>
               <Text style={styles.missionDeckTitle}>
-                {missionDeckRevealed ? 'Choose one of three signals' : 'Let chance narrow the choice'}
+                {missionDeckRevealed ? 'Choose one signal to investigate' : 'Let chance narrow the choice'}
               </Text>
               <Text style={styles.missionDeckBody}>
                 {missionDeckRevealed
-                  ? 'Easy, Medium and Hard are represented. You still decide where to begin.'
-                  : 'Draw three questions without receiving a destination or recommended place.'}
+                  ? 'Two Easy, one Medium, one Hard, and one unknown. You still decide where to begin.'
+                  : 'Draw five questions without receiving a destination or recommended place.'}
               </Text>
             </View>
           </View>
           {!missionDeckRevealed && onDrawMissionDeck ? (
-            <FigmaActionButton label="Draw 3 missions" onPress={onDrawMissionDeck} />
+            <FigmaActionButton label="Draw 5 missions" onPress={onDrawMissionDeck} />
           ) : null}
         </View>
 
-        {missionDeckRevealed ? missionDeck.map(renderMission) : null}
+        {missionDeckRevealed ? missionDeck.map(renderDeckCard) : null}
         {missionDeckRevealed && canShuffleMissionDeck && onShuffleMissionDeck ? (
-          <FigmaActionButton label="Shuffle once" outline onPress={onShuffleMissionDeck} />
+          <FigmaActionButton label="Refresh deck once" outline onPress={onShuffleMissionDeck} />
         ) : null}
         {missionDeckRevealed && !canShuffleMissionDeck ? (
-          <Text style={styles.missionDeckUsed}>Shuffle used for this session</Text>
+          <Text style={styles.missionDeckUsed}>Refresh used for this session</Text>
         ) : null}
 
       </ScrollView>

@@ -1,6 +1,7 @@
 import {
   getMissionById,
   MISSIONS,
+  MissionDefinition,
   MissionDifficulty,
   MissionEvidenceMode,
 } from './missions';
@@ -21,6 +22,11 @@ export type WeeklyCase = {
 type Completion = {
   missionId: string;
   completedAt: string;
+};
+
+export type MissionDeckCard = {
+  mission: MissionDefinition;
+  isWildCard: boolean;
 };
 
 const difficulties: MissionDifficulty[] = ['Easy', 'Medium', 'Hard'];
@@ -50,11 +56,31 @@ export function getMissionDeck(
   seed: string,
   shuffleRound = 0,
   completedMissionIds: string[] = [],
-) {
+): MissionDeckCard[] {
   const completed = new Set(completedMissionIds);
-  return difficulties.map((difficulty, index) =>
-    pickByDifficulty(difficulty, seed, shuffleRound * 3 + index, completed),
-  );
+  const selectedIds = new Set<string>();
+  const excludedIds = new Set([...completed, ...selectedIds]);
+  const draw = (difficulty: MissionDifficulty, offset: number) => {
+    const mission = pickByDifficulty(difficulty, seed, shuffleRound * 5 + offset, excludedIds);
+    selectedIds.add(mission.id);
+    excludedIds.add(mission.id);
+    return mission;
+  };
+
+  const easyOne = draw('Easy', 0);
+  const easyTwo = draw('Easy', 1);
+  const medium = draw('Medium', 2);
+  const hard = draw('Hard', 3);
+  const wildDifficulty = difficulties[hash(`${seed}:wild:${shuffleRound}`) % difficulties.length];
+  const wild = draw(wildDifficulty, 4);
+
+  return [
+    { mission: easyOne, isWildCard: false },
+    { mission: easyTwo, isWildCard: false },
+    { mission: medium, isWildCard: false },
+    { mission: hard, isWildCard: false },
+    { mission: wild, isWildCard: true },
+  ];
 }
 
 export function getDailyDeckKey(now = new Date()) {

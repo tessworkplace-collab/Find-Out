@@ -39,6 +39,7 @@ import {
   getNextMissionRemix,
   getWeeklyCase,
   getWeeklyCaseProgress,
+  MissionDeckCard,
   MissionRemix,
 } from './src/missionPlay';
 import {
@@ -383,7 +384,7 @@ function Discover({
   onOpenMission,
 }: {
   go: (s: Screen) => void;
-  missionDeck: MissionDefinition[];
+  missionDeck: MissionDeckCard[];
   missionDeckRevealed: boolean;
   canShuffleMissionDeck: boolean;
   activeMissionId: string | null;

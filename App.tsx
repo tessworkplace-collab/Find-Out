@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -23,9 +23,29 @@ import {
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
-import { activeMission, nextMission, otherDiscoveries, yourDiscovery } from './src/data';
+import { otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
+import {
+  FEATURED_MISSION_ID,
+  formatEvidenceModes,
+  getMissionById,
+  MISSIONS,
+  MissionDefinition,
+} from './src/missions';
+import {
+  DEFAULT_TROPHY_STATE,
+  equipTrophyTitle,
+  evaluateTrophies,
+  getEquippedTitle,
+  loadTrophyState,
+  recordEvidenceRetake,
+  saveTrophyState,
+  syncTrophyState,
+  TrophyDiscovery,
+  TrophyState,
+  visibleTrophyCabinet,
+} from './src/trophySystem';
 import {
   CollectionEvidence,
   DEFAULT_COLLECTION_EVIDENCE,
@@ -62,6 +82,33 @@ type Screen =
   | 'share';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
+
+type WebDiscovery = CollectionEvidence & {
+  missionId: string;
+  evidenceType: CaptureMode;
+  location: string;
+  completedAt: string;
+};
+
+const DEFAULT_WEB_DISCOVERIES: WebDiscovery[] = DEFAULT_COLLECTION_EVIDENCE.map(
+  (item, index) => ({
+    ...item,
+    missionId: 'dead-link',
+    evidenceType: 'photo',
+    location: '',
+    completedAt: new Date(Date.now() - index * 86_400_000).toISOString(),
+  }),
+);
+
+function toTrophyDiscoveries(items: WebDiscovery[]): TrophyDiscovery[] {
+  return items.map((item) => ({
+    missionId: item.missionId,
+    evidenceType: item.evidenceType,
+    observation: item.note,
+    location: item.location,
+    completedAt: item.completedAt,
+  }));
+}
 
 const brandMark = { uri: BRAND_MARK_URI };
 const waveformBars = [18, 30, 22, 38, 26, 46, 24, 40, 28, 34, 20, 36, 24, 30, 18];
@@ -316,11 +363,23 @@ function Onboarding({ go }: { go: (s: Screen) => void }) {
   );
 }
 
-function Discover({ go }: { go: (s: Screen) => void }) {
+function Discover({
+  go,
+  activeMissionId,
+  completedMissionIds,
+  onOpenMission,
+}: {
+  go: (s: Screen) => void;
+  activeMissionId: string | null;
+  completedMissionIds: string[];
+  onOpenMission: (missionId: string) => void;
+}) {
   return (
     <ProductDiscoverScreen
-      onOpenFeatured={() => go('mission-detail')}
-      onOpenMission={() => go('mission-detail')}
+      missions={MISSIONS}
+      activeMissionId={activeMissionId}
+      completedMissionIds={completedMissionIds}
+      onOpenMission={onOpenMission}
       onCollection={() => go('my-discoveries')}
       onProfile={() => go('profile')}
     />
@@ -328,23 +387,25 @@ function Discover({ go }: { go: (s: Screen) => void }) {
 }
 
 function MissionDetail({
-  go,
   back,
+  mission,
+  onOpen,
 }: {
-  go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
+  onOpen: () => void;
 }) {
   return (
     <ProductMissionDetailScreen
-      number={activeMission.number}
-      difficulty="MEDIUM"
-      evidence="Photo"
-      title={activeMission.title}
-      summary={activeMission.summary}
-      question={activeMission.question}
-      guidance={activeMission.guidance}
+      number={mission.number}
+      difficulty={mission.difficulty.toUpperCase()}
+      evidence={formatEvidenceModes(mission.evidenceModes)}
+      title={mission.title}
+      summary={mission.prompt}
+      question={mission.question}
+      guidance={`${mission.find} ${mission.investigate}`}
       onBack={back}
-      onOpen={() => go('investigate')}
+      onOpen={onOpen}
     />
   );
 }
@@ -352,13 +413,15 @@ function MissionDetail({
 function Investigate({
   go,
   back,
+  mission,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
 }) {
   return (
     <ProductInvestigateScreen
-      question={activeMission.question}
+      question={mission.question}
       onBack={back}
       onExit={() => go('discover')}
       onFound={() => go('evidence')}
@@ -369,15 +432,18 @@ function Investigate({
 function Evidence({
   go,
   back,
+  mission,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
 }) {
   return (
     <ProductEvidencePickerScreen
       onBack={back}
       onExit={() => go('discover')}
       onSelect={(mode) => goCapture(go, mode)}
+      allowedModes={mission.evidenceModes}
     />
   );
 }
@@ -513,10 +579,12 @@ function EvidencePreview({
   mode,
   go,
   back,
+  onRetake,
 }: {
   mode: CaptureMode;
   go: (s: Screen) => void;
   back: () => void;
+  onRetake?: () => void;
 }) {
   const label =
     mode === 'photo' ? 'PHOTO' : mode === 'video' ? 'VIDEO · 00:12' : 'AUDIO · 00:18';
@@ -540,7 +608,7 @@ function EvidencePreview({
       onBack={back}
       onExit={() => go('discover')}
       onUse={() => go('document')}
-      onRetake={() => go('capture')}
+      onRetake={onRetake ?? (() => go('capture'))}
     />
   );
 }
@@ -548,7 +616,8 @@ function EvidencePreview({
 function Document({
   go,
   back,
-  initialObservation = yourDiscovery.observation,
+  initialObservation = '',
+  initialLocation = '',
   editing = false,
   onCancel,
   onSave,
@@ -556,12 +625,13 @@ function Document({
   go: (s: Screen) => void;
   back: () => void;
   initialObservation?: string;
+  initialLocation?: string;
   editing?: boolean;
   onCancel?: () => void;
-  onSave?: (observation: string) => void;
+  onSave?: (observation: string, location: string) => void;
 }) {
   const [obs, setObs] = useState(initialObservation);
-  const [loc, setLoc] = useState('');
+  const [loc, setLoc] = useState(initialLocation);
   const cancel = onCancel ?? (() => go('discover'));
 
   return (
@@ -573,18 +643,27 @@ function Document({
       onBack={editing ? cancel : back}
       onExit={editing ? undefined : cancel}
       onDiscard={editing ? undefined : cancel}
-      onSubmit={() => (onSave ? onSave(obs) : go('mission-complete'))}
+      onSubmit={() => (onSave ? onSave(obs, loc) : go('mission-complete'))}
       submitLabel={editing ? 'Save changes' : 'Submit discovery'}
     />
   );
 }
 
-function MissionComplete({ go }: { go: (s: Screen) => void }) {
+function MissionComplete({
+  go,
+  unlockedTrophy,
+  onExplore,
+}: {
+  go: (s: Screen) => void;
+  unlockedTrophy?: { name: string; description: string } | null;
+  onExplore: () => void;
+}) {
   return (
     <ProductCompleteScreen
       onClose={() => go('discover')}
       onOtherDiscoveries={() => go('other-discoveries')}
-      onExplore={() => go('discover')}
+      onExplore={onExplore}
+      unlockedTrophy={unlockedTrophy}
     />
   );
 }
@@ -592,9 +671,11 @@ function MissionComplete({ go }: { go: (s: Screen) => void }) {
 function OtherDiscoveries({
   go,
   back,
+  mission,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  mission: MissionDefinition;
 }) {
   return (
     <Frame>
@@ -604,10 +685,8 @@ function OtherDiscoveries({
           title="See what others found"
           body="See how others responded to the same mission."
         />
-        <AppText style={styles.eyebrow}>A SOUND YOU KNOW</AppText>
-        <AppText style={styles.body}>
-          Notice a familiar sound you hear often but rarely pay attention to.
-        </AppText>
+        <AppText style={styles.eyebrow}>{mission.title.toUpperCase()}</AppText>
+        <AppText style={styles.body}>{mission.prompt}</AppText>
 
         <View style={[styles.response, { backgroundColor: colors.limeSubtle }]}>
           <AppText style={styles.eyebrow}>YOUR DISCOVERY</AppText>
@@ -642,14 +721,22 @@ function OtherDiscoveries({
   );
 }
 
-function DiscoveryDetail({ back }: { back: () => void }) {
+function DiscoveryDetail({
+  back,
+  mission,
+}: {
+  back: () => void;
+  mission: MissionDefinition;
+}) {
   const d = otherDiscoveries[0];
 
   return (
     <Frame>
       <TopBar title="Other discovery" onBack={back} />
       <ScrollView contentContainerStyle={styles.detail}>
-        <AppText style={styles.eyebrow}>A SOUND YOU KNOW  ·  SAME MISSION</AppText>
+        <AppText style={styles.eyebrow}>
+          {mission.title.toUpperCase()}  ·  SAME MISSION
+        </AppText>
         <AppText style={styles.detailTitle}>{d.title}</AppText>
         <AppText style={styles.label}>{d.location}</AppText>
 
@@ -681,17 +768,21 @@ function DiscoveryDetail({ back }: { back: () => void }) {
 function MyDiscoveries({
   go,
   evidence,
+  activeMissionTitle,
+  onContinue,
   onSelectEvidence,
 }: {
   go: (s: Screen) => void;
   evidence: CollectionEvidence[];
+  activeMissionTitle?: string | null;
+  onContinue?: () => void;
   onSelectEvidence: (id: string) => void;
 }) {
   return (
     <ProductCollectionScreen
-      activeMissionTitle={activeMission.title}
+      activeMissionTitle={activeMissionTitle}
       evidence={evidence}
-      onContinue={() => go('investigate')}
+      onContinue={onContinue}
       onEvidence={(id) => {
         onSelectEvidence(id);
         go('evidence-detail');
@@ -702,9 +793,22 @@ function MyDiscoveries({
   );
 }
 
-function Profile({ go }: { go: (s: Screen) => void }) {
+function Profile({
+  go,
+  stats,
+  equippedTitle,
+  trophySummary,
+}: {
+  go: (s: Screen) => void;
+  stats: string;
+  equippedTitle: string | null;
+  trophySummary: React.ComponentProps<typeof ProductProfileScreen>['trophySummary'];
+}) {
   return (
     <ProductProfileScreen
+      stats={stats}
+      equippedTitle={equippedTitle}
+      trophySummary={trophySummary}
       onDiscover={() => go('discover')}
       onCollection={() => go('my-discoveries')}
       onTrophies={() => go('trophies')}
@@ -715,12 +819,18 @@ function Profile({ go }: { go: (s: Screen) => void }) {
 function Trophies({
   go,
   back,
+  trophies,
+  onEquipTitle,
 }: {
   go: (s: Screen) => void;
   back: () => void;
+  trophies: React.ComponentProps<typeof ProductTrophiesScreen>['trophies'];
+  onEquipTitle: (trophyId: string) => void;
 }) {
   return (
     <ProductTrophiesScreen
+      trophies={trophies}
+      onEquipTitle={onEquipTitle}
       onBack={back}
       onDiscover={() => go('discover')}
       onCollection={() => go('my-discoveries')}
@@ -825,14 +935,47 @@ export default function App() {
 
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [history, setHistory] = useState<Screen[]>([]);
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
+  const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState(
-    DEFAULT_COLLECTION_EVIDENCE[0].id,
+    DEFAULT_WEB_DISCOVERIES[0].id,
   );
-  const [collectionEvidence, setCollectionEvidence] = useState<CollectionEvidence[]>(
-    () => DEFAULT_COLLECTION_EVIDENCE.map((item) => ({ ...item })),
+  const [collectionEvidence, setCollectionEvidence] = useState<WebDiscovery[]>(
+    () => DEFAULT_WEB_DISCOVERIES.map((item) => ({ ...item })),
   );
   const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
+  const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
+  const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
+
+  const selectedMission = getMissionById(selectedMissionId) ?? MISSIONS[0];
+  const activeMission = getMissionById(activeMissionId);
+  const flowMission = activeMission ?? selectedMission;
+  const completedMissionIds = useMemo(
+    () => [...new Set(collectionEvidence.map((item) => item.missionId))],
+    [collectionEvidence],
+  );
+  const trophyEvaluations = useMemo(
+    () => evaluateTrophies(toTrophyDiscoveries(collectionEvidence), trophyState),
+    [collectionEvidence, trophyState],
+  );
+  const trophyCabinet = useMemo(
+    () => visibleTrophyCabinet(trophyEvaluations),
+    [trophyEvaluations],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    loadTrophyState().then((stored) => {
+      if (!mounted) return;
+      const synced = syncTrophyState(toTrophyDiscoveries(DEFAULT_WEB_DISCOVERIES), stored);
+      setTrophyState(synced.state);
+      saveTrophyState(synced.state).catch(() => undefined);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const go = (next: Screen) => {
     if (next === 'capture') setCaptureMode(pendingCapture);
@@ -848,22 +991,99 @@ export default function App() {
       return copy;
     });
 
+  const openMission = (missionId: string) => {
+    if (!getMissionById(missionId)) return;
+    setSelectedMissionId(missionId);
+    go('mission-detail');
+  };
+
+  const beginMission = () => {
+    setActiveMissionId(selectedMission.id);
+    setCaptureMode(selectedMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    go('investigate');
+  };
+
+  const updateTrophiesFor = (discoveries: WebDiscovery[], state = trophyState) => {
+    const synced = syncTrophyState(toTrophyDiscoveries(discoveries), state);
+    setTrophyState(synced.state);
+    saveTrophyState(synced.state).catch(() => undefined);
+    return synced;
+  };
+
+  const submitMission = (observation: string, discoveryLocation: string) => {
+    const completed: WebDiscovery = {
+      id: `${flowMission.id}-${Date.now()}`,
+      missionId: flowMission.id,
+      evidenceType: captureMode,
+      title: flowMission.title,
+      note: observation,
+      location: discoveryLocation,
+      completedAt: new Date().toISOString(),
+      day: 'TODAY',
+    };
+    const next = [completed, ...collectionEvidence];
+    setCollectionEvidence(next);
+    setActiveMissionId(null);
+    setSelectedEvidenceId(completed.id);
+    const synced = updateTrophiesFor(next);
+    setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
+    go('mission-complete');
+  };
+
+  const exploreAnotherMission = () => {
+    setActiveMissionId(null);
+    setSelectedMissionId(FEATURED_MISSION_ID);
+    setLastUnlockedTrophyId(null);
+    go('discover');
+  };
+
+  const retakeEvidence = () => {
+    const nextState = recordEvidenceRetake(trophyState, flowMission.id);
+    setTrophyState(nextState);
+    saveTrophyState(nextState).catch(() => undefined);
+    go('capture');
+  };
+
+  const handleEquipTitle = (trophyId: string) => {
+    if (!trophyEvaluations.some((item) => item.definition.id === trophyId && item.unlocked)) {
+      return;
+    }
+    const nextState = equipTrophyTitle(trophyState, trophyId);
+    setTrophyState(nextState);
+    saveTrophyState(nextState).catch(() => undefined);
+  };
+
   const content = useMemo(() => {
     switch (screen) {
       case 'onboarding':
         return <Onboarding go={go} />;
       case 'discover':
-        return <Discover go={go} />;
+        return (
+          <Discover
+            go={go}
+            activeMissionId={activeMissionId}
+            completedMissionIds={completedMissionIds}
+            onOpenMission={openMission}
+          />
+        );
       case 'mission-detail':
-        return <MissionDetail go={go} back={back} />;
+        return <MissionDetail back={back} mission={selectedMission} onOpen={beginMission} />;
       case 'investigate':
-        return <Investigate go={go} back={back} />;
+        return <Investigate go={go} back={back} mission={flowMission} />;
       case 'evidence':
-        return <Evidence go={go} back={back} />;
+        return <Evidence go={go} back={back} mission={flowMission} />;
       case 'capture':
         return <Capture mode={captureMode} go={go} back={back} />;
       case 'evidence-preview':
-        return <EvidencePreview mode={captureMode} go={go} back={back} />;
+        return (
+          <EvidencePreview
+            mode={captureMode}
+            go={go}
+            back={back}
+            onRetake={retakeEvidence}
+          />
+        );
       case 'document':
         if (editingEvidenceId) {
           const editingEvidence = collectionEvidence.find(
@@ -875,16 +1095,19 @@ export default function App() {
               back={back}
               editing
               initialObservation={editingEvidence?.note}
+              initialLocation={editingEvidence?.location}
               onCancel={() => {
                 setEditingEvidenceId(null);
                 back();
               }}
-              onSave={(observation) => {
-                setCollectionEvidence((current) =>
-                  current.map((item) =>
-                    item.id === editingEvidenceId ? { ...item, note: observation } : item,
-                  ),
+              onSave={(observation, discoveryLocation) => {
+                const next = collectionEvidence.map((item) =>
+                  item.id === editingEvidenceId
+                    ? { ...item, note: observation, location: discoveryLocation }
+                    : item,
                 );
+                setCollectionEvidence(next);
+                updateTrophiesFor(next);
                 setEditingEvidenceId(null);
                 setHistory((current) =>
                   current.at(-1) === 'evidence-detail' ? current.slice(0, -1) : current,
@@ -894,25 +1117,58 @@ export default function App() {
             />
           );
         }
-        return <Document go={go} back={back} />;
+        return <Document go={go} back={back} onSave={submitMission} />;
       case 'mission-complete':
-        return <MissionComplete go={go} />;
+        return (
+          <MissionComplete
+            go={go}
+            onExplore={exploreAnotherMission}
+            unlockedTrophy={
+              trophyEvaluations.find(
+                (item) => item.definition.id === lastUnlockedTrophyId,
+              )?.definition ?? null
+            }
+          />
+        );
       case 'other-discoveries':
-        return <OtherDiscoveries go={go} back={back} />;
+        return <OtherDiscoveries go={go} back={back} mission={flowMission} />;
       case 'discovery-detail':
-        return <DiscoveryDetail back={back} />;
+        return <DiscoveryDetail back={back} mission={flowMission} />;
       case 'my-discoveries':
         return (
           <MyDiscoveries
             go={go}
             evidence={collectionEvidence}
+            activeMissionTitle={activeMission?.title}
+            onContinue={activeMission ? () => go('investigate') : undefined}
             onSelectEvidence={setSelectedEvidenceId}
           />
         );
       case 'profile':
-        return <Profile go={go} />;
+        return (
+          <Profile
+            go={go}
+            stats={`${collectionEvidence.length} discoveries  ·  ${completedMissionIds.length} missions completed`}
+            equippedTitle={getEquippedTitle(trophyState)}
+            trophySummary={{
+              unlocked: trophyCabinet.filter((item) => item.unlocked).length,
+              total: trophyCabinet.length,
+              featuredName: trophyCabinet.find((item) => item.equipped)?.definition.name ??
+                trophyCabinet.find((item) => item.unlocked)?.definition.name,
+              featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
+                trophyCabinet.find((item) => item.unlocked)?.definition.description,
+            }}
+          />
+        );
       case 'trophies':
-        return <Trophies go={go} back={back} />;
+        return (
+          <Trophies
+            go={go}
+            back={back}
+            trophies={trophyCabinet}
+            onEquipTitle={handleEquipTitle}
+          />
+        );
       case 'evidence-detail':
         return (
           <EvidenceDetail
@@ -932,7 +1188,20 @@ export default function App() {
       case 'share':
         return <Share back={back} />;
     }
-  }, [screen, captureMode, selectedEvidenceId, collectionEvidence, editingEvidenceId]);
+  }, [
+    screen,
+    captureMode,
+    selectedEvidenceId,
+    collectionEvidence,
+    editingEvidenceId,
+    selectedMissionId,
+    activeMissionId,
+    completedMissionIds,
+    trophyState,
+    trophyCabinet,
+    trophyEvaluations,
+    lastUnlockedTrophyId,
+  ]);
 
   if (!aLoaded || !iLoaded) return null;
 

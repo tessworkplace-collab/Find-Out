@@ -17,6 +17,7 @@ import NativeRoot from './NativeRoot';
 import { BRAND_MARK_URI } from './src/brand';
 import { clearDraft, DraftSnapshot, loadDraft } from './src/draftStorage';
 import { colors, radius } from './src/theme';
+import { FEATURED_MISSION_ID, getMissionById } from './src/missions';
 
 type StartupState = 'loading' | 'choice' | 'root' | 'app';
 
@@ -115,7 +116,9 @@ export default function NativeStartup() {
 
         <View style={styles.metaCard}>
           <Text style={styles.metaLabel}>SAVED MISSION</Text>
-          <Text style={styles.metaTitle}>A sound you know</Text>
+          <Text style={styles.metaTitle}>
+            {(getMissionById(draft?.missionId) ?? getMissionById(FEATURED_MISSION_ID))?.title}
+          </Text>
           <Text style={styles.metaBody}>
             {draft?.evidence ? `${draft.evidence.type.toUpperCase()} evidence saved` : 'Mission progress saved'}
             {draft?.location ? ` · ${draft.location}` : ''}

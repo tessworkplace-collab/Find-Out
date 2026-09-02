@@ -13,11 +13,17 @@ import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
 import { colors, radius } from '../theme';
 import {
+  FEATURED_MISSION_ID,
+  MissionDefinition,
+  MissionEvidenceMode,
+} from '../missions';
+import {
   DEFAULT_USER_PREFERENCES,
   loadUserPreferences,
   saveUserPreferences,
   UserPreferences,
 } from '../preferencesStorage';
+import { TrophyEvaluation } from '../trophySystem';
 import EvidenceCard from './EvidenceCard';
 import EvidenceVisual from './EvidenceVisual';
 import MissionCard from './MissionCard';
@@ -363,53 +369,56 @@ export function ProductOnboardingScreen({
 }
 
 type ProductDiscoverScreenProps = {
-  onOpenFeatured: () => void;
-  onOpenMission: () => void;
+  missions: MissionDefinition[];
+  activeMissionId?: string | null;
+  completedMissionIds?: string[];
+  onOpenMission: (missionId: string) => void;
   onCollection: () => void;
   onProfile?: () => void;
 };
 
 export function ProductDiscoverScreen({
-  onOpenFeatured,
+  missions,
+  activeMissionId,
+  completedMissionIds = [],
   onOpenMission,
   onCollection,
   onProfile,
 }: ProductDiscoverScreenProps) {
   const [selectedFilter, setSelectedFilter] = React.useState<MissionFilter>('All');
-  const missions: Array<{
-    id: string;
-    difficulty: MissionDifficulty;
-    state: 'active' | 'completed';
-    title: string;
-    description: string;
-    progressLabel: string;
-    progress: number;
-    onPress: () => void;
-  }> = [
-    {
-      id: 'sound-01',
-      difficulty: 'Medium',
-      state: 'active',
-      title: 'A sound you know',
-      description: 'Keep investigating—one discovery left.',
-      progressLabel: '2 of 3 discoveries',
-      progress: 2 / 3,
-      onPress: onOpenMission,
-    },
-    {
-      id: 'dead-link-01',
-      difficulty: 'Medium',
-      state: 'completed',
-      title: 'Dead Link',
-      description: 'Mission complete. Your discovery is saved.',
-      progressLabel: '3 of 3 discoveries',
-      progress: 1,
-      onPress: onCollection,
-    },
-  ];
+  const completedSet = new Set(completedMissionIds);
+  const featuredMission =
+    missions.find((mission) => mission.id === FEATURED_MISSION_ID) ?? missions[0];
   const visibleMissions = missions.filter(
-    (mission) => selectedFilter === 'All' || mission.difficulty === selectedFilter,
+    (mission) =>
+      mission.id !== featuredMission?.id &&
+      (selectedFilter === 'All' || mission.difficulty === selectedFilter),
   );
+
+  const renderMission = (mission: MissionDefinition) => {
+    const completed = completedSet.has(mission.id);
+    const active = activeMissionId === mission.id && !completed;
+    const state = completed ? 'completed' : active ? 'active' : 'default';
+    const progress = completed ? 1 : active ? 0.5 : 0;
+    const progressLabel = completed
+      ? 'Mission complete · discovery saved'
+      : active
+        ? 'In progress · continue mission'
+        : `${mission.number} · ${mission.pool} mission`;
+
+    return (
+      <MissionCard
+        key={mission.id}
+        state={state}
+        category={`${mission.difficulty.toUpperCase()} · ${mission.pool.toUpperCase()}`}
+        title={mission.title}
+        description={mission.prompt}
+        progressLabel={progressLabel}
+        progress={progress}
+        onPress={() => onOpenMission(mission.id)}
+      />
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -425,17 +434,9 @@ export function ProductDiscoverScreen({
         </View>
 
         <SectionLabel>FEATURED MISSION</SectionLabel>
-        <MissionCard
-          state="default"
-          category="ODD DETAILS"
-          title="Why Is This Here?"
-          description="An ordinary setting contains something that seems out of place."
-          progressLabel="0 of 1 discoveries"
-          progress={0}
-          onPress={onOpenFeatured}
-        />
+        {featuredMission ? renderMission(featuredMission) : null}
 
-        <SectionLabel>EXPLORE MISSIONS</SectionLabel>
+        <SectionLabel>EXPLORE ALL {missions.length} MISSIONS</SectionLabel>
         <View style={styles.filterRow}>
           {missionFilters.map((filter) => (
             <FilterChip
@@ -448,17 +449,7 @@ export function ProductDiscoverScreen({
         </View>
 
         {visibleMissions.length > 0 ? (
-          visibleMissions.map((mission) => (
-            <MissionCard
-              key={mission.id}
-              state={mission.state}
-              title={mission.title}
-              description={mission.description}
-              progressLabel={mission.progressLabel}
-              progress={mission.progress}
-              onPress={mission.onPress}
-            />
-          ))
+          visibleMissions.map(renderMission)
         ) : (
           <View style={styles.emptyFilterState}>
             <Text style={styles.emptyFilterTitle}>No {selectedFilter.toLowerCase()} missions yet</Text>
@@ -610,6 +601,7 @@ type ProductEvidencePickerScreenProps = {
   onBack: () => void;
   onExit?: () => void;
   onSelect: (mode: CaptureMode) => void;
+  allowedModes?: MissionEvidenceMode[];
   onStepPress?: (index: number) => void;
   maxStep?: number;
 };
@@ -618,6 +610,7 @@ export function ProductEvidencePickerScreen({
   onBack,
   onExit,
   onSelect,
+  allowedModes = ['photo', 'video', 'audio'],
   onStepPress,
   maxStep = 2,
 }: ProductEvidencePickerScreenProps) {
@@ -656,18 +649,20 @@ export function ProductEvidencePickerScreen({
         </View>
 
         <View style={styles.captureRow}>
-          {modes.map((mode) => (
-            <Pressable
-              key={mode.id}
-              onPress={() => onSelect(mode.id)}
-              style={({ pressed }) => [styles.captureAction, pressed && styles.pressed]}
-            >
-              <View style={styles.captureIcon}>
-                <Ionicons name={mode.icon} size={24} color={colors.blue} />
-              </View>
-              <Text style={styles.captureLabel}>{mode.label}</Text>
-            </Pressable>
-          ))}
+          {modes
+            .filter((mode) => allowedModes.includes(mode.id))
+            .map((mode) => (
+              <Pressable
+                key={mode.id}
+                onPress={() => onSelect(mode.id)}
+                style={({ pressed }) => [styles.captureAction, pressed && styles.pressed]}
+              >
+                <View style={styles.captureIcon}>
+                  <Ionicons name={mode.icon} size={24} color={colors.blue} />
+                </View>
+                <Text style={styles.captureLabel}>{mode.label}</Text>
+              </Pressable>
+            ))}
         </View>
       </ScrollView>
     </View>
@@ -886,12 +881,17 @@ type ProductCompleteScreenProps = {
   onClose: () => void;
   onOtherDiscoveries: () => void;
   onExplore: () => void;
+  unlockedTrophy?: {
+    name: string;
+    description: string;
+  } | null;
 };
 
 export function ProductCompleteScreen({
   onClose,
   onOtherDiscoveries,
   onExplore,
+  unlockedTrophy,
 }: ProductCompleteScreenProps) {
   return (
     <View style={styles.screen}>
@@ -913,27 +913,27 @@ export function ProductCompleteScreen({
         </View>
 
         <View style={styles.reviewBanner}>
-          <Text style={styles.reviewTitle}>PENDING REVIEW</Text>
-          <Text style={styles.reviewText}>Approval is simulated in this prototype.</Text>
+          <Text style={styles.reviewTitle}>DISCOVERY SAVED</Text>
+          <Text style={styles.reviewText}>Only submitted missions count toward Trophy progress.</Text>
         </View>
 
-        <View style={styles.trophySection}>
-          <Text style={styles.trophyEyebrow}>TROPHY UNLOCKED</Text>
-          <View style={styles.trophyCard}>
-            <View style={styles.trophyIconStage}>
-              <Ionicons name="trophy-outline" size={32} color={colors.blue} />
-            </View>
-            <View style={styles.trophyCopy}>
-              <Text style={styles.trophyTitle}>Sharp Observer</Text>
-              <Text style={styles.trophyDescription}>
-                You documented three field discoveries.
-              </Text>
-            </View>
-            <View style={styles.trophyPill}>
-              <Text style={styles.trophyPillText}>Unlocked</Text>
+        {unlockedTrophy ? (
+          <View style={styles.trophySection}>
+            <Text style={styles.trophyEyebrow}>TROPHY UNLOCKED</Text>
+            <View style={styles.trophyCard}>
+              <View style={styles.trophyIconStage}>
+                <Ionicons name="trophy-outline" size={32} color={colors.blue} />
+              </View>
+              <View style={styles.trophyCopy}>
+                <Text style={styles.trophyTitle}>{unlockedTrophy.name}</Text>
+                <Text style={styles.trophyDescription}>{unlockedTrophy.description}</Text>
+              </View>
+              <View style={styles.trophyPill}>
+                <Text style={styles.trophyPillText}>Unlocked</Text>
+              </View>
             </View>
           </View>
-        </View>
+        ) : null}
 
         <FigmaActionButton label="See other discoveries" onPress={onOtherDiscoveries} />
         <FigmaActionButton label="Explore another mission" outline onPress={onExplore} />
@@ -951,9 +951,9 @@ export type CollectionEvidence = {
 };
 
 type ProductCollectionScreenProps = {
-  activeMissionTitle: string;
+  activeMissionTitle?: string | null;
   evidence?: CollectionEvidence[];
-  onContinue: () => void;
+  onContinue?: () => void;
   onEvidence?: (id: string) => void;
   onDiscover: () => void;
   onProfile?: () => void;
@@ -983,7 +983,7 @@ export function ProductCollectionScreen({
   onProfile,
 }: ProductCollectionScreenProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
-  const collectionEvidence = (evidence ?? DEFAULT_COLLECTION_EVIDENCE).slice(0, 2);
+  const collectionEvidence = evidence ?? DEFAULT_COLLECTION_EVIDENCE;
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const visibleEvidence = collectionEvidence.filter((item) =>
     normalizedQuery.length === 0
@@ -992,11 +992,6 @@ export function ProductCollectionScreen({
           value.toLocaleLowerCase().includes(normalizedQuery),
         ),
   );
-  const activeMissionFound = Math.min(collectionEvidence.length, 2);
-  const activeMissionRemaining = 3 - activeMissionFound;
-  const activeMissionProgressCopy = `Keep investigating—${activeMissionRemaining} ${
-    activeMissionRemaining === 1 ? 'discovery' : 'discoveries'
-  } left.`;
 
   return (
     <View style={styles.screen}>
@@ -1045,14 +1040,16 @@ export function ProductCollectionScreen({
           ) : null}
         </View>
 
-        <MissionCard
-          state="active"
-          title={activeMissionTitle}
-          description={activeMissionProgressCopy}
-          progressLabel={`${activeMissionFound} of 3 discoveries`}
-          progress={activeMissionFound / 3}
-          onPress={onContinue}
-        />
+        {activeMissionTitle && onContinue ? (
+          <MissionCard
+            state="active"
+            title={activeMissionTitle}
+            description="Your current mission is saved locally and ready to continue."
+            progressLabel="IN PROGRESS"
+            progress={0.5}
+            onPress={onContinue}
+          />
+        ) : null}
 
         <Text style={styles.completedLabel}>COMPLETED DISCOVERIES</Text>
 
@@ -1150,6 +1147,13 @@ export function ProductEvidenceDetailScreen({
 type ProductProfileScreenProps = {
   name?: string;
   stats?: string;
+  equippedTitle?: string | null;
+  trophySummary?: {
+    unlocked: number;
+    total: number;
+    featuredName?: string;
+    featuredDescription?: string;
+  };
   onDiscover: () => void;
   onCollection: () => void;
   onTrophies: () => void;
@@ -1157,7 +1161,9 @@ type ProductProfileScreenProps = {
 
 export function ProductProfileScreen({
   name = 'Tess',
-  stats = '12 discoveries  ·  3 missions completed',
+  stats = '0 discoveries  ·  0 missions completed',
+  equippedTitle,
+  trophySummary = { unlocked: 0, total: 0 },
   onDiscover,
   onCollection,
   onTrophies,
@@ -1204,6 +1210,7 @@ export function ProductProfileScreen({
             <Ionicons name="person-outline" size={36} color={colors.white} />
           </View>
           <Text style={styles.profileName}>{name}</Text>
+          {equippedTitle ? <Text style={styles.profileTitle}>{equippedTitle}</Text> : null}
           <Text style={styles.profileStats}>{stats}</Text>
         </View>
 
@@ -1221,7 +1228,9 @@ export function ProductProfileScreen({
               <Text style={styles.profileSectionTitle}>Trophies</Text>
               <View style={styles.profileClueDot} />
             </View>
-            <Text style={styles.profileSectionLink}>2 / 4 · View all</Text>
+            <Text style={styles.profileSectionLink}>
+              {trophySummary.unlocked} / {trophySummary.total} · View all
+            </Text>
           </View>
 
           <View style={styles.trophyCard}>
@@ -1229,11 +1238,17 @@ export function ProductProfileScreen({
               <Ionicons name="trophy-outline" size={32} color={colors.blue} />
             </View>
             <View style={styles.trophyCopy}>
-              <Text style={styles.trophyTitle}>Sharp Observer</Text>
-              <Text style={styles.trophyDescription}>Three discoveries documented.</Text>
+              <Text style={styles.trophyTitle}>
+                {trophySummary.featuredName ?? 'No trophy unlocked yet'}
+              </Text>
+              <Text style={styles.trophyDescription}>
+                {trophySummary.featuredDescription ?? 'Submit a mission to begin your Trophy Cabinet.'}
+              </Text>
             </View>
             <View style={styles.trophyPill}>
-              <Text style={styles.trophyPillText}>Unlocked</Text>
+              <Text style={styles.trophyPillText}>
+                {trophySummary.featuredName ? 'Unlocked' : '0 / 1'}
+              </Text>
             </View>
           </View>
         </Pressable>
@@ -1297,21 +1312,38 @@ function PreferenceRow({
   );
 }
 
-type TrophyState = 'unlocked' | 'progress' | 'locked';
+type TrophyCardState = 'unlocked' | 'progress' | 'locked';
 
 function AchievementCard({
-  title,
-  description,
-  progress,
-  state,
+  trophy,
+  onPress,
 }: {
-  title: string;
-  description: string;
-  progress: string;
-  state: TrophyState;
+  trophy: TrophyEvaluation;
+  onPress: () => void;
 }) {
+  const concealed = trophy.definition.hidden && !trophy.unlocked;
+  const state: TrophyCardState = trophy.unlocked
+    ? 'unlocked'
+    : trophy.progress > 0 && !concealed
+      ? 'progress'
+      : 'locked';
+  const title = concealed ? 'Secret Trophy' : trophy.definition.name;
+  const description = concealed
+    ? 'Keep exploring to reveal this hidden achievement.'
+    : trophy.definition.description;
+  const progress = trophy.unlocked
+    ? trophy.equipped
+      ? 'Equipped'
+      : 'Unlocked'
+    : concealed
+      ? 'Locked'
+      : `${Math.min(trophy.progress, trophy.target)} / ${trophy.target}`;
+
   return (
-    <View
+    <Pressable
+      accessibilityRole={trophy.unlocked ? 'button' : undefined}
+      disabled={!trophy.unlocked}
+      onPress={onPress}
       style={[
         styles.achievementCard,
         state === 'progress' && styles.achievementCardProgress,
@@ -1325,7 +1357,7 @@ function AchievementCard({
         ]}
       >
         <Ionicons
-          name="trophy-outline"
+          name={concealed ? 'lock-closed-outline' : 'trophy-outline'}
           size={32}
           color={state === 'locked' ? colors.muted : colors.blue}
         />
@@ -1365,51 +1397,40 @@ function AchievementCard({
           {progress}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 type ProductTrophiesScreenProps = {
+  trophies: TrophyEvaluation[];
+  onEquipTitle: (trophyId: string) => void;
   onBack: () => void;
   onDiscover: () => void;
   onCollection: () => void;
 };
 
 export function ProductTrophiesScreen({
+  trophies,
+  onEquipTitle,
   onBack,
   onDiscover,
   onCollection,
 }: ProductTrophiesScreenProps) {
-  const trophies: Array<{
-    title: string;
-    description: string;
-    progress: string;
-    state: TrophyState;
-  }> = [
-    {
-      title: 'Sharp Observer',
-      description: 'Document three field discoveries.',
-      progress: 'Unlocked',
-      state: 'unlocked',
-    },
-    {
-      title: 'Evidence Keeper',
-      description: 'Capture a photo, video, and sound.',
-      progress: 'Unlocked',
-      state: 'unlocked',
-    },
-    {
-      title: 'Pattern Finder',
-      description: 'Complete four investigation missions.',
-      progress: '3 / 4',
-      state: 'progress',
-    },
-    {
-      title: 'Hidden Trophy',
-      description: 'Keep exploring to reveal this trophy.',
-      progress: 'Locked',
-      state: 'locked',
-    },
+  const [selectedTrophyId, setSelectedTrophyId] = React.useState<string | null>(null);
+  const selectedTrophy = trophies.find(
+    (item) => item.definition.id === selectedTrophyId && item.unlocked,
+  );
+  const unlocked = trophies.filter((item) => item.unlocked).length;
+  const inProgress = trophies.filter(
+    (item) => !item.unlocked && !item.definition.hidden && item.progress > 0,
+  ).length;
+  const hidden = trophies.filter(
+    (item) => !item.unlocked && item.definition.hidden,
+  ).length;
+  const groups: TrophyEvaluation['definition']['group'][] = [
+    'Achievement',
+    'Extended',
+    'Secret',
   ];
 
   return (
@@ -1422,13 +1443,51 @@ export function ProductTrophiesScreen({
       >
         <View style={styles.trophiesIntro}>
           <Text style={styles.trophiesEyebrow}>ACHIEVEMENT FIELD LOG</Text>
-          <Text style={styles.trophiesSummary}>2 unlocked · 1 in progress · 1 hidden</Text>
+          <Text style={styles.trophiesSummary}>
+            {unlocked} unlocked · {inProgress} in progress · {hidden} hidden
+          </Text>
           <Image source={{ uri: BRAND_MARK_URI }} style={styles.trophiesBrandMark} />
         </View>
 
-        {trophies.map((trophy) => (
-          <AchievementCard key={trophy.title} {...trophy} />
-        ))}
+        {selectedTrophy ? (
+          <View style={styles.trophyDetailCard}>
+            <Text style={styles.trophyDetailEyebrow}>TITLE UNLOCKED</Text>
+            <Text style={styles.trophyDetailName}>{selectedTrophy.definition.name}</Text>
+            <Text style={styles.trophyDetailTitle}>{selectedTrophy.definition.title}</Text>
+            <Text style={styles.trophyDetailDescription}>
+              {selectedTrophy.definition.description}
+            </Text>
+            {selectedTrophy.unlockedAt ? (
+              <Text style={styles.trophyDetailDate}>
+                Unlocked {new Date(selectedTrophy.unlockedAt).toLocaleDateString()}
+              </Text>
+            ) : null}
+            <FigmaActionButton
+              label={selectedTrophy.equipped ? 'Title equipped' : 'Equip title'}
+              onPress={() => onEquipTitle(selectedTrophy.definition.id)}
+              outline={selectedTrophy.equipped}
+            />
+          </View>
+        ) : null}
+
+        {groups.map((group) => {
+          const groupTrophies = trophies.filter(
+            (item) => item.definition.group === group,
+          );
+          if (groupTrophies.length === 0) return null;
+          return (
+            <View key={group} style={styles.trophyGroup}>
+              <Text style={styles.trophyGroupLabel}>{group.toUpperCase()}</Text>
+              {groupTrophies.map((item) => (
+                <AchievementCard
+                  key={item.definition.id}
+                  trophy={item}
+                  onPress={() => setSelectedTrophyId(item.definition.id)}
+                />
+              ))}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <FigmaBottomNavigation
@@ -2619,6 +2678,13 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     letterSpacing: -0.24,
   },
+  profileTitle: {
+    color: colors.blue,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    lineHeight: 16,
+    letterSpacing: 0.88,
+  },
   profileStats: {
     color: colors.text,
     fontFamily: 'Inter_400Regular',
@@ -2730,6 +2796,56 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     resizeMode: 'contain',
+  },
+  trophyDetailCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.blue,
+    borderRadius: radius.lg,
+    backgroundColor: colors.blueSubtle,
+    padding: 18,
+    gap: 8,
+  },
+  trophyDetailEyebrow: {
+    color: colors.blue,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+  },
+  trophyDetailName: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  trophyDetailTitle: {
+    color: colors.blue,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    lineHeight: 18,
+    letterSpacing: 0.72,
+  },
+  trophyDetailDescription: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  trophyDetailDate: {
+    color: colors.muted,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  trophyGroup: { width: '100%', gap: 10 },
+  trophyGroupLabel: {
+    color: colors.muted,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+    marginTop: 6,
   },
   achievementCard: {
     width: '100%',

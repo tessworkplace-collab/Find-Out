@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -42,7 +42,12 @@ import {
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
-import { activeMission } from './src/data';
+import {
+  FEATURED_MISSION_ID,
+  formatEvidenceModes,
+  getMissionById,
+  MISSIONS,
+} from './src/missions';
 import {
   clearDraft,
   loadDraft,
@@ -57,6 +62,19 @@ import {
   updateCompletedDiscovery,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
+import {
+  DEFAULT_TROPHY_STATE,
+  equipTrophyTitle,
+  evaluateTrophies,
+  getEquippedTitle,
+  loadTrophyState,
+  recordEvidenceRetake,
+  saveTrophyState,
+  syncTrophyState,
+  TrophyDiscovery,
+  TrophyState,
+  visibleTrophyCabinet,
+} from './src/trophySystem';
 import {
   ProductCollectionScreen,
   ProductCompleteScreen,
@@ -103,7 +121,7 @@ type Evidence = {
   durationMs?: number;
 };
 
-const DEFAULT_OBSERVATION = 'The crossing signal carries farther than I noticed.';
+const DEFAULT_OBSERVATION = '';
 const AUDIO_MAX_DURATION_MS = 10_000;
 
 function AppText({ children, style, ...props }: React.ComponentProps<typeof Text>) {
@@ -332,10 +350,22 @@ function AudioEvidencePreview({ uri, durationMs = 0 }: { uri: string; durationMs
   );
 }
 
+function toTrophyDiscoveries(items: CompletedDiscovery[]): TrophyDiscovery[] {
+  return items.map((item) => ({
+    missionId: item.missionId,
+    evidenceType: item.evidence.type,
+    observation: item.observation,
+    location: item.location,
+    completedAt: item.completedAt,
+  }));
+}
+
 export default function NativeApp() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold });
   const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [screen, setScreen] = useState<Screen>('discover');
+  const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [facing, setFacing] = useState<CameraType>('back');
@@ -353,6 +383,24 @@ export default function NativeApp() {
   const [editingObservation, setEditingObservation] = useState('');
   const [editingLocation, setEditingLocation] = useState('');
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
+  const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
+  const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
+
+  const selectedMission = getMissionById(selectedMissionId) ?? MISSIONS[0];
+  const activeMission = getMissionById(activeMissionId);
+  const flowMission = activeMission ?? selectedMission;
+  const completedMissionIds = useMemo(
+    () => [...new Set(discoveries.map((item) => item.missionId))],
+    [discoveries],
+  );
+  const trophyEvaluations = useMemo(
+    () => evaluateTrophies(toTrophyDiscoveries(discoveries), trophyState),
+    [discoveries, trophyState],
+  );
+  const trophyCabinet = useMemo(
+    () => visibleTrophyCabinet(trophyEvaluations),
+    [trophyEvaluations],
+  );
 
   const cameraRef = useRef<CameraView | null>(null);
   const videoStartedAt = useRef<number | null>(null);
@@ -369,8 +417,24 @@ export default function NativeApp() {
 
     const restoreDraft = async () => {
       try {
-        const draft = await loadDraft();
-        if (!mounted || !draft) return;
+        const [draft, savedDiscoveries, storedTrophyState] = await Promise.all([
+          loadDraft(),
+          loadCompletedDiscoveries(),
+          loadTrophyState(),
+        ]);
+        if (!mounted) return;
+
+        const syncedTrophies = syncTrophyState(
+          toTrophyDiscoveries(savedDiscoveries),
+          storedTrophyState,
+        );
+        setDiscoveries(savedDiscoveries);
+        setTrophyState(syncedTrophies.state);
+        if (syncedTrophies.state !== storedTrophyState) {
+          await saveTrophyState(syncedTrophies.state).catch(() => undefined);
+        }
+
+        if (!draft) return;
 
         if (!MISSION_DRAFT_SCREENS.includes(draft.screen as Screen)) {
           await clearDraft().catch(() => undefined);
@@ -378,6 +442,8 @@ export default function NativeApp() {
         }
 
         const restoredEvidence = draft.evidence as Evidence | null;
+        const restoredMission =
+          getMissionById(draft.missionId) ?? getMissionById(FEATURED_MISSION_ID)!;
         const restoredScreen: Screen =
           draft.screen === 'capture' ||
           draft.screen === 'preview' ||
@@ -390,6 +456,8 @@ export default function NativeApp() {
               : (draft.screen as Screen);
 
         setCaptureMode(draft.captureMode);
+        setSelectedMissionId(restoredMission.id);
+        setActiveMissionId(restoredMission.id);
         setEvidence(restoredEvidence);
         setHighestStep(draft.highestStep);
         setSubmitted(draft.submitted);
@@ -418,7 +486,11 @@ export default function NativeApp() {
     }
 
     // Browsing saved work must never replace the user's active mission draft.
-    if (editingDiscoveryId || !MISSION_DRAFT_SCREENS.includes(screen)) return;
+    if (
+      editingDiscoveryId ||
+      !activeMissionId ||
+      !MISSION_DRAFT_SCREENS.includes(screen)
+    ) return;
 
     const restorableScreen =
       screen === 'capture' || screen === 'preview'
@@ -429,6 +501,7 @@ export default function NativeApp() {
 
     const timer = setTimeout(() => {
       saveDraft({
+        missionId: activeMissionId,
         screen: restorableScreen,
         captureMode,
         evidence,
@@ -450,6 +523,7 @@ export default function NativeApp() {
     observation,
     location,
     editingDiscoveryId,
+    activeMissionId,
   ]);
 
   useEffect(() => {
@@ -470,6 +544,55 @@ export default function NativeApp() {
     setHighestStep(current => Math.max(current, step));
   };
 
+  const openMissionDetail = (missionId: string) => {
+    if (!getMissionById(missionId)) return;
+    setSelectedMissionId(missionId);
+    setScreen('mission');
+  };
+
+  const activateSelectedMission = async () => {
+    if (activeMissionId && activeMissionId !== selectedMission.id) {
+      await clearDraft(evidence).catch(() => undefined);
+    }
+    setActiveMissionId(selectedMission.id);
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(1);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode(selectedMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    setScreen('investigate');
+  };
+
+  const beginSelectedMission = () => {
+    if (activeMissionId === selectedMission.id && highestStep > 0) {
+      setScreen(
+        evidence ? 'document' : highestStep >= 2 ? 'evidence' : 'investigate',
+      );
+      return;
+    }
+
+    const replacingActiveMission =
+      activeMissionId &&
+      activeMissionId !== selectedMission.id &&
+      (highestStep > 0 || Boolean(evidence));
+
+    if (!replacingActiveMission) {
+      void activateSelectedMission();
+      return;
+    }
+
+    Alert.alert(
+      'Start a different mission?',
+      'Find Out keeps one active mission at a time. Starting this mission will remove the current draft.',
+      [
+        { text: 'Keep current', style: 'cancel' },
+        { text: 'Start mission', style: 'destructive', onPress: () => void activateSelectedMission() },
+      ],
+    );
+  };
+
   const getRestorableScreen = (): Screen => {
     if (screen === 'capture' || screen === 'preview') {
       return evidence ? 'document' : 'investigate';
@@ -483,6 +606,7 @@ export default function NativeApp() {
     suppressDiscoverAutosave.current = true;
     try {
       await saveDraft({
+        missionId: activeMissionId ?? flowMission.id,
         screen: getRestorableScreen(),
         captureMode,
         evidence,
@@ -501,6 +625,7 @@ export default function NativeApp() {
     if (index > highestStep || isVideoRecording || audioState.isRecording) return;
 
     if (index === 0) {
+      setSelectedMissionId(flowMission.id);
       setScreen('mission');
       return;
     }
@@ -699,7 +824,10 @@ export default function NativeApp() {
     setHighestStep(0);
     setObservation(DEFAULT_OBSERVATION);
     setLocation('');
-    setCaptureMode('audio');
+    setCaptureMode('photo');
+    setActiveMissionId(null);
+    setSelectedMissionId(FEATURED_MISSION_ID);
+    setLastUnlockedTrophyId(null);
     setScreen('discover');
   };
 
@@ -742,6 +870,23 @@ export default function NativeApp() {
     }
   };
 
+  const retakeEvidence = async () => {
+    const nextState = recordEvidenceRetake(trophyState, flowMission.id);
+    setTrophyState(nextState);
+    await saveTrophyState(nextState).catch(() => undefined);
+    setScreen('capture');
+  };
+
+  const handleEquipTitle = async (trophyId: string) => {
+    const trophy = trophyEvaluations.find(
+      (item) => item.definition.id === trophyId && item.unlocked,
+    );
+    if (!trophy) return;
+    const nextState = equipTrophyTitle(trophyState, trophyId);
+    setTrophyState(nextState);
+    await saveTrophyState(nextState).catch(() => undefined);
+  };
+
   const submitDiscovery = async () => {
     if (submittingDiscovery || (!editingDiscoveryId && !evidence)) return;
 
@@ -752,9 +897,13 @@ export default function NativeApp() {
           observation: editingObservation,
           location: editingLocation,
         });
-        setDiscoveries(current =>
-          current.map(item => (item.id === updated.id ? updated : item)),
+        const nextDiscoveries = discoveries.map(item =>
+          item.id === updated.id ? updated : item,
         );
+        const synced = syncTrophyState(toTrophyDiscoveries(nextDiscoveries), trophyState);
+        setDiscoveries(nextDiscoveries);
+        setTrophyState(synced.state);
+        await saveTrophyState(synced.state).catch(() => undefined);
         setSelectedDiscovery(updated);
         setEditingDiscoveryId(null);
         setEditingObservation('');
@@ -766,14 +915,25 @@ export default function NativeApp() {
       if (!evidence) return;
 
       const completed = await addCompletedDiscovery({
-        missionId: activeMission.id,
-        missionTitle: activeMission.title,
-        category: activeMission.category,
+        missionId: flowMission.id,
+        missionTitle: flowMission.title,
+        category: `${flowMission.difficulty.toUpperCase()} MISSION`,
         observation,
         location,
         evidence,
       });
-      setDiscoveries(current => [completed, ...current.filter(item => item.id !== completed.id)]);
+      const nextDiscoveries = [
+        completed,
+        ...discoveries.filter(item => item.id !== completed.id),
+      ];
+      const synced = syncTrophyState(toTrophyDiscoveries(nextDiscoveries), trophyState);
+      setDiscoveries(nextDiscoveries);
+      setTrophyState(synced.state);
+      setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
+      await saveTrophyState(synced.state).catch(() => undefined);
+      await clearDraft(evidence).catch(() => undefined);
+      setEvidence(null);
+      setActiveMissionId(null);
       setSubmitted(true);
       updateHighestStep(3);
       setScreen('complete');
@@ -1007,7 +1167,7 @@ export default function NativeApp() {
           onBack={() => setScreen('capture')}
           onExit={exitMissionToHome}
           onUse={() => setScreen('document')}
-          onRetake={() => setScreen('capture')}
+          onRetake={() => void retakeEvidence()}
         />
       </SafeAreaView>
     );
@@ -1061,6 +1221,11 @@ export default function NativeApp() {
           onClose={() => setScreen('discover')}
           onOtherDiscoveries={openMyDiscoveries}
           onExplore={resetMission}
+          unlockedTrophy={
+            trophyEvaluations.find(
+              (item) => item.definition.id === lastUnlockedTrophyId,
+            )?.definition ?? null
+          }
         />
       </SafeAreaView>
     );
@@ -1070,15 +1235,17 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductCollectionScreen
-          activeMissionTitle={activeMission.title}
-          evidence={discoveries.slice(0, 2).map((item, index) => ({
+          activeMissionTitle={!submitted ? activeMission?.title : null}
+          evidence={discoveries.map((item, index) => ({
             id: item.id,
             day: index === 0 ? 'TODAY' : 'EARLIER',
             title: item.missionTitle,
             note: item.observation,
             mediaUri: item.evidence.type === 'photo' ? item.evidence.uri : undefined,
           }))}
-          onContinue={() => setScreen('investigate')}
+          onContinue={() =>
+            setScreen(evidence ? 'document' : highestStep >= 2 ? 'evidence' : 'investigate')
+          }
           onEvidence={openDiscoveryDetail}
           onDiscover={() => setScreen('discover')}
           onProfile={() => setScreen('profile')}
@@ -1094,6 +1261,7 @@ export default function NativeApp() {
           onBack={() => setScreen('investigate')}
           onExit={exitMissionToHome}
           onSelect={goCapture}
+          allowedModes={flowMission.evidenceModes}
           onStepPress={goToStep}
           maxStep={highestStep}
         />
@@ -1105,7 +1273,7 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductInvestigateScreen
-          question={activeMission.question}
+          question={flowMission.question}
           onBack={() => setScreen('mission')}
           onExit={exitMissionToHome}
           onFound={() => {
@@ -1123,18 +1291,15 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductMissionDetailScreen
-          number={activeMission.number}
-          difficulty="MEDIUM"
-          evidence="Photo"
-          title={activeMission.title}
-          summary={activeMission.summary}
-          question={activeMission.question}
-          guidance={activeMission.guidance}
+          number={selectedMission.number}
+          difficulty={selectedMission.difficulty.toUpperCase()}
+          evidence={formatEvidenceModes(selectedMission.evidenceModes)}
+          title={selectedMission.title}
+          summary={selectedMission.prompt}
+          question={selectedMission.question}
+          guidance={`${selectedMission.find} ${selectedMission.investigate}`}
           onBack={() => setScreen('discover')}
-          onOpen={() => {
-            updateHighestStep(1);
-            setScreen('investigate');
-          }}
+          onOpen={beginSelectedMission}
         />
       </SafeAreaView>
     );
@@ -1144,6 +1309,16 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductProfileScreen
+          stats={`${discoveries.length} discoveries  ·  ${completedMissionIds.length} missions completed`}
+          equippedTitle={getEquippedTitle(trophyState)}
+          trophySummary={{
+            unlocked: trophyCabinet.filter((item) => item.unlocked).length,
+            total: trophyCabinet.length,
+            featuredName: trophyCabinet.find((item) => item.equipped)?.definition.name ??
+              trophyCabinet.find((item) => item.unlocked)?.definition.name,
+            featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
+              trophyCabinet.find((item) => item.unlocked)?.definition.description,
+          }}
           onDiscover={() => setScreen('discover')}
           onCollection={openMyDiscoveries}
           onTrophies={() => setScreen('trophies')}
@@ -1156,6 +1331,8 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductTrophiesScreen
+          trophies={trophyCabinet}
+          onEquipTitle={(trophyId) => void handleEquipTitle(trophyId)}
           onBack={() => setScreen('profile')}
           onDiscover={() => setScreen('discover')}
           onCollection={openMyDiscoveries}
@@ -1167,8 +1344,10 @@ export default function NativeApp() {
   return (
     <SafeAreaView style={styles.safe}>
       <ProductDiscoverScreen
-        onOpenFeatured={() => setScreen('mission')}
-        onOpenMission={() => setScreen('mission')}
+        missions={MISSIONS}
+        activeMissionId={activeMissionId}
+        completedMissionIds={completedMissionIds}
+        onOpenMission={openMissionDetail}
         onCollection={openMyDiscoveries}
         onProfile={() => setScreen('profile')}
       />

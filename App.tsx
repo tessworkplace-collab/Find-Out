@@ -376,7 +376,7 @@ function Discover({
   go,
   missionDeck,
   missionDeckRevealed,
-  canShuffleMissionDeck,
+  refreshesRemaining,
   activeMissionId,
   completedMissionIds,
   onDrawMissionDeck,
@@ -386,7 +386,7 @@ function Discover({
   go: (s: Screen) => void;
   missionDeck: MissionDeckCard[];
   missionDeckRevealed: boolean;
-  canShuffleMissionDeck: boolean;
+  refreshesRemaining: number;
   activeMissionId: string | null;
   completedMissionIds: string[];
   onDrawMissionDeck: () => void;
@@ -398,7 +398,7 @@ function Discover({
       missions={MISSIONS}
       missionDeck={missionDeck}
       missionDeckRevealed={missionDeckRevealed}
-      canShuffleMissionDeck={canShuffleMissionDeck}
+      refreshesRemaining={refreshesRemaining}
       activeMissionId={activeMissionId}
       completedMissionIds={completedMissionIds}
       onDrawMissionDeck={onDrawMissionDeck}
@@ -1134,11 +1134,11 @@ export default function App() {
             go={go}
             missionDeck={missionDeck}
             missionDeckRevealed={missionDeckRevealed}
-            canShuffleMissionDeck={missionDeckShuffleRound === 0}
+            refreshesRemaining={Math.max(0, 2 - missionDeckShuffleRound)}
             activeMissionId={activeMissionId}
             completedMissionIds={completedMissionIds}
             onDrawMissionDeck={() => setMissionDeckRevealed(true)}
-            onShuffleMissionDeck={() => setMissionDeckShuffleRound(1)}
+            onShuffleMissionDeck={() => setMissionDeckShuffleRound((round) => Math.min(2, round + 1))}
             onOpenMission={openMission}
           />
         );

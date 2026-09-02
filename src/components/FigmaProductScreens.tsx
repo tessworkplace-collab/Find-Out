@@ -205,23 +205,31 @@ type ActionButtonProps = {
   label: string;
   onPress: () => void;
   outline?: boolean;
+  disabled?: boolean;
 };
 
 export function FigmaActionButton({
   label,
   onPress,
   outline = false,
+  disabled = false,
 }: ActionButtonProps) {
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.actionButton,
         outline && styles.actionButtonOutline,
-        pressed && styles.pressed,
+        disabled && styles.actionButtonDisabled,
+        pressed && !disabled && styles.pressed,
       ]}
     >
-      <Text style={[styles.actionButtonText, outline && styles.actionButtonTextOutline]}>
+      <Text style={[
+        styles.actionButtonText,
+        outline && styles.actionButtonTextOutline,
+        disabled && styles.actionButtonTextDisabled,
+      ]}>
         {label}
       </Text>
     </Pressable>
@@ -339,7 +347,7 @@ type ProductDiscoverScreenProps = {
   missions: MissionDefinition[];
   missionDeck?: MissionDeckCard[];
   missionDeckRevealed?: boolean;
-  canShuffleMissionDeck?: boolean;
+  refreshesRemaining?: number;
   activeMissionId?: string | null;
   completedMissionIds?: string[];
   onDrawMissionDeck?: () => void;
@@ -353,7 +361,7 @@ export function ProductDiscoverScreen({
   missions,
   missionDeck = [],
   missionDeckRevealed = false,
-  canShuffleMissionDeck = true,
+  refreshesRemaining = 2,
   activeMissionId,
   completedMissionIds = [],
   onDrawMissionDeck,
@@ -451,11 +459,17 @@ export function ProductDiscoverScreen({
         </View>
 
         {missionDeckRevealed ? missionDeck.map(renderDeckCard) : null}
-        {missionDeckRevealed && canShuffleMissionDeck && onShuffleMissionDeck ? (
-          <FigmaActionButton label="Refresh deck once" outline onPress={onShuffleMissionDeck} />
-        ) : null}
-        {missionDeckRevealed && !canShuffleMissionDeck ? (
-          <Text style={styles.missionDeckUsed}>Refresh used for this session</Text>
+        {missionDeckRevealed && onShuffleMissionDeck ? (
+          <FigmaActionButton
+            label={
+              refreshesRemaining > 0
+                ? `REFRESH DECK · ${refreshesRemaining} LEFT`
+                : 'NO REFRESHES LEFT'
+            }
+            outline
+            disabled={refreshesRemaining === 0}
+            onPress={onShuffleMissionDeck}
+          />
         ) : null}
 
       </ScrollView>
@@ -1668,6 +1682,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.blue,
   },
+  actionButtonDisabled: {
+    backgroundColor: colors.softGrey,
+    borderColor: colors.borderStrong,
+  },
   actionButtonText: {
     color: colors.white,
     fontFamily: 'Inter_700Bold',
@@ -1675,6 +1693,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   actionButtonTextOutline: { color: colors.blue },
+  actionButtonTextDisabled: { color: colors.muted },
 
   titleBlock: { width: '100%', gap: 24 },
   h1: {

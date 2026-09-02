@@ -57,30 +57,38 @@ export function getMissionDeck(
   shuffleRound = 0,
   completedMissionIds: string[] = [],
 ): MissionDeckCard[] {
-  const completed = new Set(completedMissionIds);
-  const selectedIds = new Set<string>();
-  const excludedIds = new Set([...completed, ...selectedIds]);
-  const draw = (difficulty: MissionDifficulty, offset: number) => {
-    const mission = pickByDifficulty(difficulty, seed, shuffleRound * 5 + offset, excludedIds);
-    selectedIds.add(mission.id);
-    excludedIds.add(mission.id);
-    return mission;
+  const seenIds = new Set(completedMissionIds);
+  let currentDeck: MissionDeckCard[] = [];
+
+  const drawWildCard = (round: number) => {
+    const available = MISSIONS.filter((mission) => !seenIds.has(mission.id));
+    const pool = available.length > 0 ? available : MISSIONS;
+    return pool[hash(`${seed}:wild:${round}`) % pool.length];
   };
 
-  const easyOne = draw('Easy', 0);
-  const easyTwo = draw('Easy', 1);
-  const medium = draw('Medium', 2);
-  const hard = draw('Hard', 3);
-  const wildDifficulty = difficulties[hash(`${seed}:wild:${shuffleRound}`) % difficulties.length];
-  const wild = draw(wildDifficulty, 4);
+  for (let round = 0; round <= shuffleRound; round += 1) {
+    const draw = (difficulty: MissionDifficulty, offset: number) => {
+      const mission = pickByDifficulty(difficulty, seed, round * 5 + offset, seenIds);
+      seenIds.add(mission.id);
+      return mission;
+    };
+    const easyOne = draw('Easy', 0);
+    const easyTwo = draw('Easy', 1);
+    const medium = draw('Medium', 2);
+    const hard = draw('Hard', 3);
+    const wild = drawWildCard(round);
+    seenIds.add(wild.id);
 
-  return [
-    { mission: easyOne, isWildCard: false },
-    { mission: easyTwo, isWildCard: false },
-    { mission: medium, isWildCard: false },
-    { mission: hard, isWildCard: false },
-    { mission: wild, isWildCard: true },
-  ];
+    currentDeck = [
+      { mission: easyOne, isWildCard: false },
+      { mission: easyTwo, isWildCard: false },
+      { mission: medium, isWildCard: false },
+      { mission: hard, isWildCard: false },
+      { mission: wild, isWildCard: true },
+    ];
+  }
+
+  return currentDeck;
 }
 
 export function getDailyDeckKey(now = new Date()) {

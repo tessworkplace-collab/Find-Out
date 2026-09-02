@@ -1410,11 +1410,11 @@ export default function NativeApp() {
         missions={MISSIONS}
         missionDeck={missionDeck}
         missionDeckRevealed={missionDeckRevealed}
-        canShuffleMissionDeck={missionDeckShuffleRound === 0}
+        refreshesRemaining={Math.max(0, 2 - missionDeckShuffleRound)}
         activeMissionId={activeMissionId}
         completedMissionIds={completedMissionIds}
         onDrawMissionDeck={() => setMissionDeckRevealed(true)}
-        onShuffleMissionDeck={() => setMissionDeckShuffleRound(1)}
+        onShuffleMissionDeck={() => setMissionDeckShuffleRound((round) => Math.min(2, round + 1))}
         onOpenMission={openMissionDetail}
         onCollection={openMyDiscoveries}
         onProfile={() => setScreen('profile')}

@@ -17,6 +17,7 @@ import {
   MissionDefinition,
   MissionEvidenceMode,
 } from '../missions';
+import { MissionRemix } from '../missionPlay';
 import {
   DEFAULT_USER_PREFERENCES,
   loadUserPreferences,
@@ -370,8 +371,13 @@ export function ProductOnboardingScreen({
 
 type ProductDiscoverScreenProps = {
   missions: MissionDefinition[];
+  missionDeck?: MissionDefinition[];
+  missionDeckRevealed?: boolean;
+  canShuffleMissionDeck?: boolean;
   activeMissionId?: string | null;
   completedMissionIds?: string[];
+  onDrawMissionDeck?: () => void;
+  onShuffleMissionDeck?: () => void;
   onOpenMission: (missionId: string) => void;
   onCollection: () => void;
   onProfile?: () => void;
@@ -379,8 +385,13 @@ type ProductDiscoverScreenProps = {
 
 export function ProductDiscoverScreen({
   missions,
+  missionDeck = [],
+  missionDeckRevealed = false,
+  canShuffleMissionDeck = true,
   activeMissionId,
   completedMissionIds = [],
+  onDrawMissionDeck,
+  onShuffleMissionDeck,
   onOpenMission,
   onCollection,
   onProfile,
@@ -432,6 +443,36 @@ export function ProductDiscoverScreen({
           <Text style={styles.h1}>Something familiar. Something unnoticed.</Text>
           <Text style={styles.body}>Open one mission and investigate it your way.</Text>
         </View>
+
+        <SectionLabel>MISSION DECK</SectionLabel>
+        <View style={styles.missionDeckPanel}>
+          <View style={styles.missionDeckHeader}>
+            <View style={styles.missionDeckIcon}>
+              <Ionicons name="shuffle-outline" size={24} color={colors.blue} />
+            </View>
+            <View style={styles.missionDeckCopy}>
+              <Text style={styles.missionDeckTitle}>
+                {missionDeckRevealed ? 'Choose one of three signals' : 'Let chance narrow the choice'}
+              </Text>
+              <Text style={styles.missionDeckBody}>
+                {missionDeckRevealed
+                  ? 'Easy, Medium and Hard are represented. You still decide where to begin.'
+                  : 'Draw three questions without receiving a destination or recommended place.'}
+              </Text>
+            </View>
+          </View>
+          {!missionDeckRevealed && onDrawMissionDeck ? (
+            <FigmaActionButton label="Draw 3 missions" onPress={onDrawMissionDeck} />
+          ) : null}
+        </View>
+
+        {missionDeckRevealed ? missionDeck.map(renderMission) : null}
+        {missionDeckRevealed && canShuffleMissionDeck && onShuffleMissionDeck ? (
+          <FigmaActionButton label="Shuffle once" outline onPress={onShuffleMissionDeck} />
+        ) : null}
+        {missionDeckRevealed && !canShuffleMissionDeck ? (
+          <Text style={styles.missionDeckUsed}>Shuffle used for this session</Text>
+        ) : null}
 
         <SectionLabel>FEATURED MISSION</SectionLabel>
         {featuredMission ? renderMission(featuredMission) : null}
@@ -538,6 +579,7 @@ export function ProductMissionDetailScreen({
 
 type ProductInvestigateScreenProps = {
   question: string;
+  remix?: MissionRemix | null;
   onBack: () => void;
   onExit?: () => void;
   onFound: () => void;
@@ -547,6 +589,7 @@ type ProductInvestigateScreenProps = {
 
 export function ProductInvestigateScreen({
   question,
+  remix,
   onBack,
   onExit,
   onFound,
@@ -577,6 +620,18 @@ export function ProductInvestigateScreen({
             <Text style={styles.body}>Move slowly. Let one detail lead you to the next.</Text>
           </View>
         </View>
+
+        {remix ? (
+          <View style={styles.remixBanner}>
+            <View style={styles.remixBadge}>
+              <Ionicons name="repeat-outline" size={18} color={colors.blue} />
+            </View>
+            <View style={styles.remixCopy}>
+              <Text style={styles.remixLabel}>MISSION REMIX · {remix.label}</Text>
+              <Text style={styles.remixDescription}>{remix.description}</Text>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.currentMissionCard}>
           <View style={styles.currentMissionDot} />
@@ -881,6 +936,7 @@ type ProductCompleteScreenProps = {
   onClose: () => void;
   onOtherDiscoveries: () => void;
   onExplore: () => void;
+  onRemix?: () => void;
   unlockedTrophy?: {
     name: string;
     description: string;
@@ -891,6 +947,7 @@ export function ProductCompleteScreen({
   onClose,
   onOtherDiscoveries,
   onExplore,
+  onRemix,
   unlockedTrophy,
 }: ProductCompleteScreenProps) {
   return (
@@ -936,6 +993,9 @@ export function ProductCompleteScreen({
         ) : null}
 
         <FigmaActionButton label="See other discoveries" onPress={onOtherDiscoveries} />
+        {onRemix ? (
+          <FigmaActionButton label="Remix this mission" outline onPress={onRemix} />
+        ) : null}
         <FigmaActionButton label="Explore another mission" outline onPress={onExplore} />
       </ScrollView>
     </View>
@@ -1154,6 +1214,11 @@ type ProductProfileScreenProps = {
     featuredName?: string;
     featuredDescription?: string;
   };
+  weeklyCase?: {
+    progress: number;
+    total: number;
+    missionTitles: string[];
+  };
   onDiscover: () => void;
   onCollection: () => void;
   onTrophies: () => void;
@@ -1164,6 +1229,7 @@ export function ProductProfileScreen({
   stats = '0 discoveries  ·  0 missions completed',
   equippedTitle,
   trophySummary = { unlocked: 0, total: 0 },
+  weeklyCase = { progress: 0, total: 3, missionTitles: [] },
   onDiscover,
   onCollection,
   onTrophies,
@@ -1252,6 +1318,29 @@ export function ProductProfileScreen({
             </View>
           </View>
         </Pressable>
+
+        <View style={styles.weeklyCaseCard}>
+          <View style={styles.weeklyCaseHeader}>
+            <View>
+              <Text style={styles.weeklyCaseEyebrow}>WEEKLY CASE</Text>
+              <Text style={styles.weeklyCaseTitle}>Three signals, one field log</Text>
+            </View>
+            <Text style={styles.weeklyCaseCount}>
+              {weeklyCase.progress} / {weeklyCase.total}
+            </Text>
+          </View>
+          <Text style={styles.weeklyCaseBody}>
+            {weeklyCase.missionTitles.join('  ·  ') || 'One Easy, one Medium and one Hard mission.'}
+          </Text>
+          <View style={styles.weeklyCaseTrack}>
+            <View
+              style={[
+                styles.weeklyCaseProgress,
+                { width: `${Math.min(100, (weeklyCase.progress / weeklyCase.total) * 100)}%` },
+              ]}
+            />
+          </View>
+        </View>
 
         <View style={styles.preferences}>
           <Text style={styles.preferencesTitle}>Preferences</Text>
@@ -1744,6 +1833,53 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 16,
   },
+  missionDeckPanel: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.blue,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
+    backgroundColor: colors.blueSubtle,
+    padding: 16,
+    gap: 16,
+  },
+  missionDeckHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  missionDeckIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  missionDeckCopy: { flex: 1, gap: 5 },
+  missionDeckTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  missionDeckBody: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  missionDeckUsed: {
+    color: colors.muted,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    lineHeight: 16,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
   browseCard: {
     width: '100%',
     height: 176,
@@ -2017,6 +2153,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
   },
   investigateCopy: { flex: 1, gap: 24 },
+  remixBanner: {
+    width: '100%',
+    minHeight: 82,
+    borderWidth: 1,
+    borderColor: colors.blue,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  remixBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  remixCopy: { flex: 1, gap: 4 },
+  remixLabel: {
+    color: colors.blue,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.7,
+  },
+  remixDescription: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+  },
   currentMissionCard: {
     width: '100%',
     height: 92,
@@ -2693,6 +2863,64 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   profileTrophySection: { width: '100%', height: 146, gap: 8 },
+  weeklyCaseCard: {
+    width: '100%',
+    minHeight: 136,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
+    backgroundColor: colors.white,
+    padding: 16,
+    gap: 10,
+  },
+  weeklyCaseHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  weeklyCaseEyebrow: {
+    color: colors.blue,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+  },
+  weeklyCaseTitle: {
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 17,
+    lineHeight: 23,
+    marginTop: 2,
+  },
+  weeklyCaseCount: {
+    color: colors.blue,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  weeklyCaseBody: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  weeklyCaseTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  weeklyCaseProgress: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.lime,
+  },
   profileSectionHeader: {
     width: '100%',
     height: 26,

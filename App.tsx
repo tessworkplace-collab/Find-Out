@@ -34,6 +34,13 @@ import {
   MissionDefinition,
 } from './src/missions';
 import {
+  getMissionDeck,
+  getNextMissionRemix,
+  getWeeklyCase,
+  getWeeklyCaseProgress,
+  MissionRemix,
+} from './src/missionPlay';
+import {
   DEFAULT_TROPHY_STATE,
   equipTrophyTitle,
   evaluateTrophies,
@@ -365,20 +372,35 @@ function Onboarding({ go }: { go: (s: Screen) => void }) {
 
 function Discover({
   go,
+  missionDeck,
+  missionDeckRevealed,
+  canShuffleMissionDeck,
   activeMissionId,
   completedMissionIds,
+  onDrawMissionDeck,
+  onShuffleMissionDeck,
   onOpenMission,
 }: {
   go: (s: Screen) => void;
+  missionDeck: MissionDefinition[];
+  missionDeckRevealed: boolean;
+  canShuffleMissionDeck: boolean;
   activeMissionId: string | null;
   completedMissionIds: string[];
+  onDrawMissionDeck: () => void;
+  onShuffleMissionDeck: () => void;
   onOpenMission: (missionId: string) => void;
 }) {
   return (
     <ProductDiscoverScreen
       missions={MISSIONS}
+      missionDeck={missionDeck}
+      missionDeckRevealed={missionDeckRevealed}
+      canShuffleMissionDeck={canShuffleMissionDeck}
       activeMissionId={activeMissionId}
       completedMissionIds={completedMissionIds}
+      onDrawMissionDeck={onDrawMissionDeck}
+      onShuffleMissionDeck={onShuffleMissionDeck}
       onOpenMission={onOpenMission}
       onCollection={() => go('my-discoveries')}
       onProfile={() => go('profile')}
@@ -414,14 +436,17 @@ function Investigate({
   go,
   back,
   mission,
+  remix,
 }: {
   go: (s: Screen) => void;
   back: () => void;
   mission: MissionDefinition;
+  remix?: MissionRemix | null;
 }) {
   return (
     <ProductInvestigateScreen
       question={mission.question}
+      remix={remix}
       onBack={back}
       onExit={() => go('discover')}
       onFound={() => go('evidence')}
@@ -433,17 +458,19 @@ function Evidence({
   go,
   back,
   mission,
+  remix,
 }: {
   go: (s: Screen) => void;
   back: () => void;
   mission: MissionDefinition;
+  remix?: MissionRemix | null;
 }) {
   return (
     <ProductEvidencePickerScreen
       onBack={back}
       onExit={() => go('discover')}
       onSelect={(mode) => goCapture(go, mode)}
-      allowedModes={mission.evidenceModes}
+      allowedModes={remix?.evidenceMode ? [remix.evidenceMode] : mission.evidenceModes}
     />
   );
 }
@@ -653,16 +680,19 @@ function MissionComplete({
   go,
   unlockedTrophy,
   onExplore,
+  onRemix,
 }: {
   go: (s: Screen) => void;
   unlockedTrophy?: { name: string; description: string } | null;
   onExplore: () => void;
+  onRemix: () => void;
 }) {
   return (
     <ProductCompleteScreen
       onClose={() => go('discover')}
       onOtherDiscoveries={() => go('other-discoveries')}
       onExplore={onExplore}
+      onRemix={onRemix}
       unlockedTrophy={unlockedTrophy}
     />
   );
@@ -798,17 +828,20 @@ function Profile({
   stats,
   equippedTitle,
   trophySummary,
+  weeklyCase,
 }: {
   go: (s: Screen) => void;
   stats: string;
   equippedTitle: string | null;
   trophySummary: React.ComponentProps<typeof ProductProfileScreen>['trophySummary'];
+  weeklyCase: React.ComponentProps<typeof ProductProfileScreen>['weeklyCase'];
 }) {
   return (
     <ProductProfileScreen
       stats={stats}
       equippedTitle={equippedTitle}
       trophySummary={trophySummary}
+      weeklyCase={weeklyCase}
       onDiscover={() => go('discover')}
       onCollection={() => go('my-discoveries')}
       onTrophies={() => go('trophies')}
@@ -938,6 +971,10 @@ export default function App() {
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
+  const [missionDeckSeed] = useState(() => String(Date.now()));
+  const [missionDeckRevealed, setMissionDeckRevealed] = useState(false);
+  const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState(
     DEFAULT_WEB_DISCOVERIES[0].id,
   );
@@ -962,6 +999,15 @@ export default function App() {
   const trophyCabinet = useMemo(
     () => visibleTrophyCabinet(trophyEvaluations),
     [trophyEvaluations],
+  );
+  const missionDeck = useMemo(
+    () => getMissionDeck(missionDeckSeed, missionDeckShuffleRound, completedMissionIds),
+    [missionDeckSeed, missionDeckShuffleRound, completedMissionIds],
+  );
+  const weeklyCase = useMemo(() => getWeeklyCase(), []);
+  const weeklyCaseProgress = useMemo(
+    () => getWeeklyCaseProgress(collectionEvidence, weeklyCase),
+    [collectionEvidence, weeklyCase],
   );
 
   useEffect(() => {
@@ -999,6 +1045,7 @@ export default function App() {
 
   const beginMission = () => {
     setActiveMissionId(selectedMission.id);
+    setActiveRemix(null);
     setCaptureMode(selectedMission.evidenceModes[0] ?? 'photo');
     setLastUnlockedTrophyId(null);
     go('investigate');
@@ -1033,9 +1080,30 @@ export default function App() {
 
   const exploreAnotherMission = () => {
     setActiveMissionId(null);
+    setActiveRemix(null);
     setSelectedMissionId(FEATURED_MISSION_ID);
     setLastUnlockedTrophyId(null);
     go('discover');
+  };
+
+  const remixMission = () => {
+    const previous = collectionEvidence.find(
+      (item) => item.missionId === flowMission.id,
+    );
+    const completionCount = collectionEvidence.filter(
+      (item) => item.missionId === flowMission.id,
+    ).length;
+    const remix = getNextMissionRemix(
+      flowMission.id,
+      completionCount,
+      previous?.evidenceType,
+    );
+    setSelectedMissionId(flowMission.id);
+    setActiveMissionId(flowMission.id);
+    setActiveRemix(remix);
+    setCaptureMode(remix.evidenceMode ?? flowMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    go('investigate');
   };
 
   const retakeEvidence = () => {
@@ -1062,17 +1130,22 @@ export default function App() {
         return (
           <Discover
             go={go}
+            missionDeck={missionDeck}
+            missionDeckRevealed={missionDeckRevealed}
+            canShuffleMissionDeck={missionDeckShuffleRound === 0}
             activeMissionId={activeMissionId}
             completedMissionIds={completedMissionIds}
+            onDrawMissionDeck={() => setMissionDeckRevealed(true)}
+            onShuffleMissionDeck={() => setMissionDeckShuffleRound(1)}
             onOpenMission={openMission}
           />
         );
       case 'mission-detail':
         return <MissionDetail back={back} mission={selectedMission} onOpen={beginMission} />;
       case 'investigate':
-        return <Investigate go={go} back={back} mission={flowMission} />;
+        return <Investigate go={go} back={back} mission={flowMission} remix={activeRemix} />;
       case 'evidence':
-        return <Evidence go={go} back={back} mission={flowMission} />;
+        return <Evidence go={go} back={back} mission={flowMission} remix={activeRemix} />;
       case 'capture':
         return <Capture mode={captureMode} go={go} back={back} />;
       case 'evidence-preview':
@@ -1123,6 +1196,7 @@ export default function App() {
           <MissionComplete
             go={go}
             onExplore={exploreAnotherMission}
+            onRemix={remixMission}
             unlockedTrophy={
               trophyEvaluations.find(
                 (item) => item.definition.id === lastUnlockedTrophyId,
@@ -1157,6 +1231,11 @@ export default function App() {
                 trophyCabinet.find((item) => item.unlocked)?.definition.name,
               featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
                 trophyCabinet.find((item) => item.unlocked)?.definition.description,
+            }}
+            weeklyCase={{
+              progress: weeklyCaseProgress,
+              total: weeklyCase.missions.length,
+              missionTitles: weeklyCase.missions.map((mission) => mission.title),
             }}
           />
         );
@@ -1196,11 +1275,17 @@ export default function App() {
     editingEvidenceId,
     selectedMissionId,
     activeMissionId,
+    activeRemix,
+    missionDeck,
+    missionDeckRevealed,
+    missionDeckShuffleRound,
     completedMissionIds,
     trophyState,
     trophyCabinet,
     trophyEvaluations,
     lastUnlockedTrophyId,
+    weeklyCase,
+    weeklyCaseProgress,
   ]);
 
   if (!aLoaded || !iLoaded) return null;

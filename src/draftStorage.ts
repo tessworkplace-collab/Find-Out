@@ -9,6 +9,7 @@ export type PersistedEvidence = {
 
 export type DraftSnapshot = {
   missionId?: string;
+  remixId?: string;
   screen: string;
   captureMode: 'photo' | 'video' | 'audio';
   evidence: PersistedEvidence | null;

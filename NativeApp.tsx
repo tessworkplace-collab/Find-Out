@@ -49,6 +49,14 @@ import {
   MISSIONS,
 } from './src/missions';
 import {
+  getMissionDeck,
+  getMissionRemixById,
+  getNextMissionRemix,
+  getWeeklyCase,
+  getWeeklyCaseProgress,
+  MissionRemix,
+} from './src/missionPlay';
+import {
   clearDraft,
   loadDraft,
   persistEvidenceFile,
@@ -366,6 +374,10 @@ export default function NativeApp() {
   const [screen, setScreen] = useState<Screen>('discover');
   const [selectedMissionId, setSelectedMissionId] = useState(FEATURED_MISSION_ID);
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [activeRemix, setActiveRemix] = useState<MissionRemix | null>(null);
+  const [missionDeckSeed] = useState(() => String(Date.now()));
+  const [missionDeckRevealed, setMissionDeckRevealed] = useState(false);
+  const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('audio');
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [facing, setFacing] = useState<CameraType>('back');
@@ -400,6 +412,15 @@ export default function NativeApp() {
   const trophyCabinet = useMemo(
     () => visibleTrophyCabinet(trophyEvaluations),
     [trophyEvaluations],
+  );
+  const missionDeck = useMemo(
+    () => getMissionDeck(missionDeckSeed, missionDeckShuffleRound, completedMissionIds),
+    [missionDeckSeed, missionDeckShuffleRound, completedMissionIds],
+  );
+  const weeklyCase = useMemo(() => getWeeklyCase(), []);
+  const weeklyCaseProgress = useMemo(
+    () => getWeeklyCaseProgress(discoveries, weeklyCase),
+    [discoveries, weeklyCase],
   );
 
   const cameraRef = useRef<CameraView | null>(null);
@@ -458,6 +479,7 @@ export default function NativeApp() {
         setCaptureMode(draft.captureMode);
         setSelectedMissionId(restoredMission.id);
         setActiveMissionId(restoredMission.id);
+        setActiveRemix(getMissionRemixById(restoredMission.id, draft.remixId));
         setEvidence(restoredEvidence);
         setHighestStep(draft.highestStep);
         setSubmitted(draft.submitted);
@@ -502,6 +524,7 @@ export default function NativeApp() {
     const timer = setTimeout(() => {
       saveDraft({
         missionId: activeMissionId,
+        remixId: activeRemix?.id,
         screen: restorableScreen,
         captureMode,
         evidence,
@@ -524,6 +547,7 @@ export default function NativeApp() {
     location,
     editingDiscoveryId,
     activeMissionId,
+    activeRemix,
   ]);
 
   useEffect(() => {
@@ -555,6 +579,7 @@ export default function NativeApp() {
       await clearDraft(evidence).catch(() => undefined);
     }
     setActiveMissionId(selectedMission.id);
+    setActiveRemix(null);
     setEvidence(null);
     setSubmitted(false);
     setHighestStep(1);
@@ -607,6 +632,7 @@ export default function NativeApp() {
     try {
       await saveDraft({
         missionId: activeMissionId ?? flowMission.id,
+        remixId: activeRemix?.id,
         screen: getRestorableScreen(),
         captureMode,
         evidence,
@@ -826,6 +852,7 @@ export default function NativeApp() {
     setLocation('');
     setCaptureMode('photo');
     setActiveMissionId(null);
+    setActiveRemix(null);
     setSelectedMissionId(FEATURED_MISSION_ID);
     setLastUnlockedTrophyId(null);
     setScreen('discover');
@@ -835,6 +862,30 @@ export default function NativeApp() {
     const saved = await loadCompletedDiscoveries();
     setDiscoveries(saved);
     setScreen('discoveries');
+  };
+
+  const startMissionRemix = async () => {
+    const previous = discoveries.find((item) => item.missionId === flowMission.id);
+    const completionCount = discoveries.filter(
+      (item) => item.missionId === flowMission.id,
+    ).length;
+    const remix = getNextMissionRemix(
+      flowMission.id,
+      completionCount,
+      previous?.evidence.type,
+    );
+    await clearDraft(evidence).catch(() => undefined);
+    setSelectedMissionId(flowMission.id);
+    setActiveMissionId(flowMission.id);
+    setActiveRemix(remix);
+    setEvidence(null);
+    setSubmitted(false);
+    setHighestStep(1);
+    setObservation(DEFAULT_OBSERVATION);
+    setLocation('');
+    setCaptureMode(remix.evidenceMode ?? flowMission.evidenceModes[0] ?? 'photo');
+    setLastUnlockedTrophyId(null);
+    setScreen('investigate');
   };
 
   const openDiscoveryDetail = (id: string) => {
@@ -1220,6 +1271,7 @@ export default function NativeApp() {
         <ProductCompleteScreen
           onClose={() => setScreen('discover')}
           onOtherDiscoveries={openMyDiscoveries}
+          onRemix={() => void startMissionRemix()}
           onExplore={resetMission}
           unlockedTrophy={
             trophyEvaluations.find(
@@ -1261,7 +1313,11 @@ export default function NativeApp() {
           onBack={() => setScreen('investigate')}
           onExit={exitMissionToHome}
           onSelect={goCapture}
-          allowedModes={flowMission.evidenceModes}
+          allowedModes={
+            activeRemix?.evidenceMode
+              ? [activeRemix.evidenceMode]
+              : flowMission.evidenceModes
+          }
           onStepPress={goToStep}
           maxStep={highestStep}
         />
@@ -1274,6 +1330,7 @@ export default function NativeApp() {
       <SafeAreaView style={styles.safe}>
         <ProductInvestigateScreen
           question={flowMission.question}
+          remix={activeRemix}
           onBack={() => setScreen('mission')}
           onExit={exitMissionToHome}
           onFound={() => {
@@ -1319,6 +1376,11 @@ export default function NativeApp() {
             featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
               trophyCabinet.find((item) => item.unlocked)?.definition.description,
           }}
+          weeklyCase={{
+            progress: weeklyCaseProgress,
+            total: weeklyCase.missions.length,
+            missionTitles: weeklyCase.missions.map((mission) => mission.title),
+          }}
           onDiscover={() => setScreen('discover')}
           onCollection={openMyDiscoveries}
           onTrophies={() => setScreen('trophies')}
@@ -1345,8 +1407,13 @@ export default function NativeApp() {
     <SafeAreaView style={styles.safe}>
       <ProductDiscoverScreen
         missions={MISSIONS}
+        missionDeck={missionDeck}
+        missionDeckRevealed={missionDeckRevealed}
+        canShuffleMissionDeck={missionDeckShuffleRound === 0}
         activeMissionId={activeMissionId}
         completedMissionIds={completedMissionIds}
+        onDrawMissionDeck={() => setMissionDeckRevealed(true)}
+        onShuffleMissionDeck={() => setMissionDeckShuffleRound(1)}
         onOpenMission={openMissionDetail}
         onCollection={openMyDiscoveries}
         onProfile={() => setScreen('profile')}

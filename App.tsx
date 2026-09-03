@@ -662,6 +662,12 @@ function Document({
   const [obs, setObs] = useState(initialObservation);
   const [loc, setLoc] = useState(initialLocation);
   const cancel = onCancel ?? (() => go('discover'));
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((position) => {
+      setLoc(`${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`);
+    });
+  };
 
   return (
     <ProductDocumentScreen
@@ -669,6 +675,7 @@ function Document({
       location={loc}
       onChangeObservation={setObs}
       onChangeLocation={setLoc}
+      onUseCurrentLocation={useCurrentLocation}
       onBack={editing ? cancel : back}
       onExit={editing ? undefined : cancel}
       onDiscard={editing ? undefined : cancel}

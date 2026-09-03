@@ -748,6 +748,7 @@ type ProductDocumentScreenProps = {
   location: string;
   onChangeObservation: (value: string) => void;
   onChangeLocation: (value: string) => void;
+  onUseCurrentLocation?: () => void;
   onBack: () => void;
   onExit?: () => void;
   onDiscard?: () => void;
@@ -763,6 +764,7 @@ export function ProductDocumentScreen({
   location,
   onChangeObservation,
   onChangeLocation,
+  onUseCurrentLocation,
   onBack,
   onExit,
   onDiscard,
@@ -773,8 +775,13 @@ export function ProductDocumentScreen({
   submitDisabled = false,
 }: ProductDocumentScreenProps) {
   const [showExitConfirmation, setShowExitConfirmation] = React.useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = React.useState(false);
   const observationMissing = observation.trim().length === 0;
-  const isSubmitDisabled = submitDisabled || observationMissing;
+  const showObservationError = hasAttemptedSubmit && observationMissing;
+  const requestSubmit = () => {
+    setHasAttemptedSubmit(true);
+    if (!observationMissing) onSubmit();
+  };
 
   const requestExit = onExit ? () => setShowExitConfirmation(true) : undefined;
   const leaveDraft = () => {
@@ -817,10 +824,13 @@ export function ProductDocumentScreen({
             accessibilityLabel="Observation"
             value={observation}
             onChangeText={onChangeObservation}
-            style={[styles.formInput, observationMissing && styles.formInputError]}
+            placeholder="What did you notice?"
+            placeholderTextColor={colors.muted}
+            multiline
+            style={[styles.formInput, styles.observationInput, showObservationError && styles.formInputError]}
           />
-          <Text style={[styles.formHelper, observationMissing && styles.formHelperError]}>
-            {observationMissing ? 'Add a short observation' : 'Saved as draft'}
+          <Text style={[styles.formHelper, showObservationError && styles.formHelperError]}>
+            {showObservationError ? 'Add a short observation' : 'Add one or two sentences about what you found.'}
           </Text>
         </View>
 
@@ -834,7 +844,15 @@ export function ProductDocumentScreen({
             placeholderTextColor={colors.muted}
             style={styles.formInput}
           />
-          <Text style={styles.formHelper}>Optional place name</Text>
+          <View style={styles.locationHelperRow}>
+            <Text style={styles.formHelper}>Add a location (optional)</Text>
+            {onUseCurrentLocation ? (
+              <Pressable onPress={onUseCurrentLocation} style={styles.locationAction}>
+                <Ionicons name="locate-outline" size={15} color={colors.blue} />
+                <Text style={styles.locationActionText}>Use current location</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.evidenceBanner}>
@@ -848,12 +866,12 @@ export function ProductDocumentScreen({
         </View>
 
         <Pressable
-          disabled={isSubmitDisabled}
-          onPress={onSubmit}
+          disabled={submitDisabled}
+          onPress={requestSubmit}
           style={({ pressed }) => [
             styles.actionButton,
-            isSubmitDisabled && styles.disabled,
-            pressed && !isSubmitDisabled && styles.pressed,
+            submitDisabled && styles.disabled,
+            pressed && !submitDisabled && styles.pressed,
           ]}
         >
           <Text style={styles.actionButtonText}>{submitLabel}</Text>
@@ -1686,6 +1704,10 @@ const styles = StyleSheet.create({
   },
   actionButtonTextOutline: { color: colors.blue },
   actionButtonTextDisabled: { color: colors.muted },
+  observationInput: { minHeight: 96, textAlignVertical: 'top', paddingTop: 14 },
+  locationHelperRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  locationAction: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
+  locationActionText: { color: colors.blue, fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16 },
 
   titleBlock: { width: '100%', gap: 24 },
   deckIntro: { width: '100%', gap: 8, paddingBottom: 4 },

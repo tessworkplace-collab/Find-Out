@@ -30,6 +30,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import {
   Archivo_600SemiBold,
@@ -386,6 +387,18 @@ export default function NativeApp() {
   const [isVideoRecording, setIsVideoRecording] = useState(false);
   const [videoDurationMs, setVideoDurationMs] = useState(0);
   const [highestStep, setHighestStep] = useState(0);
+
+  const useCurrentLocation = async () => {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== 'granted') {
+      Alert.alert('Location unavailable', 'You can add a location manually instead.');
+      return;
+    }
+    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const value = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+    if (editingDiscoveryId) setEditingLocation(value);
+    else setLocation(value);
+  };
   const [submitted, setSubmitted] = useState(false);
   const [observation, setObservation] = useState(DEFAULT_OBSERVATION);
   const [location, setLocation] = useState('');
@@ -1236,6 +1249,7 @@ export default function NativeApp() {
             editingDiscovery ? setEditingObservation : setObservation
           }
           onChangeLocation={editingDiscovery ? setEditingLocation : setLocation}
+          onUseCurrentLocation={() => void useCurrentLocation()}
           onBack={
             editingDiscovery
               ? cancelEditingDiscovery

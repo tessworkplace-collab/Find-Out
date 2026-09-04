@@ -749,6 +749,7 @@ type ProductDocumentScreenProps = {
   onChangeObservation: (value: string) => void;
   onChangeLocation: (value: string) => void;
   onUseCurrentLocation?: () => void;
+  locationSuggestions?: string[];
   onBack: () => void;
   onExit?: () => void;
   onDiscard?: () => void;
@@ -765,6 +766,7 @@ export function ProductDocumentScreen({
   onChangeObservation,
   onChangeLocation,
   onUseCurrentLocation,
+  locationSuggestions = [],
   onBack,
   onExit,
   onDiscard,
@@ -853,6 +855,21 @@ export function ProductDocumentScreen({
               </Pressable>
             ) : null}
           </View>
+          {locationSuggestions.length > 0 ? (
+            <View style={styles.locationSuggestions}>
+              <Text style={styles.locationSuggestionsLabel}>NEARBY</Text>
+              {locationSuggestions.map((suggestion) => (
+                <Pressable
+                  key={suggestion}
+                  onPress={() => onChangeLocation(suggestion)}
+                  style={styles.locationSuggestion}
+                >
+                  <Ionicons name="location-outline" size={15} color={colors.blue} />
+                  <Text style={styles.locationSuggestionText}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.evidenceBanner}>
@@ -1708,6 +1725,10 @@ const styles = StyleSheet.create({
   locationHelperRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   locationAction: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   locationActionText: { color: colors.blue, fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16 },
+  locationSuggestions: { width: '100%', gap: 6, marginTop: 4 },
+  locationSuggestionsLabel: { color: colors.muted, fontFamily: 'Inter_600SemiBold', fontSize: 10, lineHeight: 14, letterSpacing: 0.8 },
+  locationSuggestion: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 6 },
+  locationSuggestionText: { color: colors.blue, fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18 },
 
   titleBlock: { width: '100%', gap: 24 },
   deckIntro: { width: '100%', gap: 8, paddingBottom: 4 },

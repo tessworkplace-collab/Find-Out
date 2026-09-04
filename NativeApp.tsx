@@ -387,6 +387,7 @@ export default function NativeApp() {
   const [isVideoRecording, setIsVideoRecording] = useState(false);
   const [videoDurationMs, setVideoDurationMs] = useState(0);
   const [highestStep, setHighestStep] = useState(0);
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
 
   const useCurrentLocation = async () => {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -395,7 +396,18 @@ export default function NativeApp() {
       return;
     }
     const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    const value = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+    const addresses = await Location.reverseGeocodeAsync(position.coords);
+    const address = addresses[0];
+    const candidates = address
+      ? [
+          address.name,
+          [address.street, address.district].filter(Boolean).join(', '),
+          [address.city, address.region].filter(Boolean).join(', '),
+        ].filter((item): item is string => Boolean(item && item.trim()))
+      : [];
+    const suggestions = [...new Set(candidates)];
+    const value = suggestions[0] ?? 'Current location';
+    setLocationSuggestions(suggestions);
     if (editingDiscoveryId) setEditingLocation(value);
     else setLocation(value);
   };
@@ -1250,6 +1262,7 @@ export default function NativeApp() {
           }
           onChangeLocation={editingDiscovery ? setEditingLocation : setLocation}
           onUseCurrentLocation={() => void useCurrentLocation()}
+          locationSuggestions={locationSuggestions}
           onBack={
             editingDiscovery
               ? cancelEditingDiscovery

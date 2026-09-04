@@ -1188,7 +1188,6 @@ export function ProductEvidenceDetailScreen({
 }
 
 type ProductProfileScreenProps = {
-  name?: string;
   stats?: string;
   equippedTitle?: string | null;
   trophySummary?: {
@@ -1197,22 +1196,15 @@ type ProductProfileScreenProps = {
     featuredName?: string;
     featuredDescription?: string;
   };
-  weeklyCase?: {
-    progress: number;
-    total: number;
-    missionTitles: string[];
-  };
   onDiscover: () => void;
   onCollection: () => void;
   onTrophies: () => void;
 };
 
 export function ProductProfileScreen({
-  name = 'Tess',
   stats = '0 discoveries  ·  0 missions completed',
   equippedTitle,
   trophySummary = { unlocked: 0, total: 0 },
-  weeklyCase = { progress: 0, total: 3, missionTitles: [] },
   onDiscover,
   onCollection,
   onTrophies,
@@ -1221,6 +1213,7 @@ export function ProductProfileScreen({
     DEFAULT_USER_PREFERENCES,
   );
   const [preferencesReady, setPreferencesReady] = React.useState(false);
+  const [editingName, setEditingName] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
@@ -1243,7 +1236,16 @@ export function ProductProfileScreen({
   }, [preferences, preferencesReady]);
 
   const togglePreference = (key: keyof UserPreferences) => {
+    if (key === 'displayName') return;
     setPreferences((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const saveName = () => {
+    setPreferences((current) => ({
+      ...current,
+      displayName: current.displayName.trim() || DEFAULT_USER_PREFERENCES.displayName,
+    }));
+    setEditingName(false);
   };
 
   return (
@@ -1258,7 +1260,25 @@ export function ProductProfileScreen({
           <View style={styles.profileAvatar}>
             <Ionicons name="person-outline" size={36} color={colors.white} />
           </View>
-          <Text style={styles.profileName}>{name}</Text>
+          {editingName ? (
+            <TextInput
+              autoFocus
+              value={preferences.displayName}
+              onChangeText={(displayName) =>
+                setPreferences((current) => ({ ...current, displayName }))
+              }
+              onSubmitEditing={saveName}
+              onBlur={saveName}
+              maxLength={24}
+              style={styles.profileNameInput}
+              returnKeyType="done"
+            />
+          ) : (
+            <Pressable onPress={() => setEditingName(true)} style={styles.profileNameAction}>
+              <Text style={styles.profileName}>{preferences.displayName}</Text>
+              <Ionicons name="pencil-outline" size={15} color={colors.blue} />
+            </Pressable>
+          )}
           {equippedTitle ? <Text style={styles.profileTitle}>{equippedTitle}</Text> : null}
           <Text style={styles.profileStats}>{stats}</Text>
         </View>
@@ -1301,29 +1321,6 @@ export function ProductProfileScreen({
             </View>
           </View>
         </Pressable>
-
-        <View style={styles.weeklyCaseCard}>
-          <View style={styles.weeklyCaseHeader}>
-            <View>
-              <Text style={styles.weeklyCaseEyebrow}>WEEKLY CASE</Text>
-              <Text style={styles.weeklyCaseTitle}>Three signals, one field log</Text>
-            </View>
-            <Text style={styles.weeklyCaseCount}>
-              {weeklyCase.progress} / {weeklyCase.total}
-            </Text>
-          </View>
-          <Text style={styles.weeklyCaseBody}>
-            {weeklyCase.missionTitles.join('  ·  ') || 'One Easy, one Medium and one Hard mission.'}
-          </Text>
-          <View style={styles.weeklyCaseTrack}>
-            <View
-              style={[
-                styles.weeklyCaseProgress,
-                { width: `${Math.min(100, (weeklyCase.progress / weeklyCase.total) * 100)}%` },
-              ]}
-            />
-          </View>
-        </View>
 
         <View style={styles.preferences}>
           <Text style={styles.preferencesTitle}>Preferences</Text>
@@ -2859,6 +2856,18 @@ const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 36,
     letterSpacing: -0.24,
+  },
+  profileNameAction: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  profileNameInput: {
+    minWidth: 144,
+    height: 42,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.blue,
+    color: colors.ink,
+    fontFamily: 'Archivo_600SemiBold',
+    fontSize: 30,
+    lineHeight: 36,
+    textAlign: 'center',
   },
   profileTitle: {
     color: colors.blue,

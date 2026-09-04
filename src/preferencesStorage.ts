@@ -1,11 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type UserPreferences = {
+  displayName: string;
   missionReminders: boolean;
   locationAccess: boolean;
 };
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  displayName: 'Tess',
   missionReminders: true,
   locationAccess: false,
 };
@@ -19,6 +21,10 @@ export async function loadUserPreferences(): Promise<UserPreferences> {
 
     const parsed = JSON.parse(raw) as Partial<UserPreferences>;
     return {
+      displayName:
+        typeof parsed.displayName === 'string' && parsed.displayName.trim()
+          ? parsed.displayName.trim().slice(0, 24)
+          : DEFAULT_USER_PREFERENCES.displayName,
       missionReminders:
         typeof parsed.missionReminders === 'boolean'
           ? parsed.missionReminders

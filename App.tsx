@@ -837,20 +837,17 @@ function Profile({
   stats,
   equippedTitle,
   trophySummary,
-  weeklyCase,
 }: {
   go: (s: Screen) => void;
   stats: string;
   equippedTitle: string | null;
   trophySummary: React.ComponentProps<typeof ProductProfileScreen>['trophySummary'];
-  weeklyCase: React.ComponentProps<typeof ProductProfileScreen>['weeklyCase'];
 }) {
   return (
     <ProductProfileScreen
       stats={stats}
       equippedTitle={equippedTitle}
       trophySummary={trophySummary}
-      weeklyCase={weeklyCase}
       onDiscover={() => go('discover')}
       onCollection={() => go('my-discoveries')}
       onTrophies={() => go('trophies')}
@@ -1240,11 +1237,6 @@ export default function App() {
                 trophyCabinet.find((item) => item.unlocked)?.definition.name,
               featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
                 trophyCabinet.find((item) => item.unlocked)?.definition.description,
-            }}
-            weeklyCase={{
-              progress: weeklyCaseProgress,
-              total: weeklyCase.requiredDifficulties.length,
-              missionTitles: weeklyCase.requiredDifficulties,
             }}
           />
         );

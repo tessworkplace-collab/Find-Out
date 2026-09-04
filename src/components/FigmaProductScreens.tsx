@@ -2454,12 +2454,12 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.45 },
   confirmationOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 50,
     justifyContent: 'flex-end',
   },
   confirmationScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(17, 19, 24, 0.42)',
   },
   confirmationSheet: {

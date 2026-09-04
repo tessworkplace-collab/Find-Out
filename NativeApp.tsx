@@ -1404,11 +1404,6 @@ export default function NativeApp() {
             featuredDescription: trophyCabinet.find((item) => item.equipped)?.definition.description ??
               trophyCabinet.find((item) => item.unlocked)?.definition.description,
           }}
-          weeklyCase={{
-            progress: weeklyCaseProgress,
-            total: weeklyCase.requiredDifficulties.length,
-            missionTitles: weeklyCase.requiredDifficulties,
-          }}
           onDiscover={() => setScreen('discover')}
           onCollection={openMyDiscoveries}
           onTrophies={() => setScreen('trophies')}

@@ -661,11 +661,27 @@ function Document({
 }) {
   const [obs, setObs] = useState(initialObservation);
   const [loc, setLoc] = useState(initialLocation);
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
   const cancel = onCancel ?? (() => go('discover'));
   const useCurrentLocation = () => {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((position) => {
-      setLoc(`${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`,
+        );
+        const result = await response.json();
+        const address = result.address ?? {};
+        const suggestions = [...new Set([
+          result.name,
+          [address.road, address.suburb].filter(Boolean).join(', '),
+          [address.city ?? address.town ?? address.village, address.state].filter(Boolean).join(', '),
+        ].filter(Boolean))] as string[];
+        setLocationSuggestions(suggestions);
+        setLoc(suggestions[0] ?? 'Current location');
+      } catch {
+        setLoc('Current location');
+      }
     });
   };
 
@@ -676,6 +692,7 @@ function Document({
       onChangeObservation={setObs}
       onChangeLocation={setLoc}
       onUseCurrentLocation={useCurrentLocation}
+      locationSuggestions={locationSuggestions}
       onBack={editing ? cancel : back}
       onExit={editing ? undefined : cancel}
       onDiscard={editing ? undefined : cancel}

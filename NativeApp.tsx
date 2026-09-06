@@ -392,8 +392,7 @@ export default function NativeApp() {
   const useCurrentLocation = async () => {
     const permission = await Location.requestForegroundPermissionsAsync();
     if (permission.status !== 'granted') {
-      Alert.alert('Location unavailable', 'You can add a location manually instead.');
-      return;
+      throw new Error('Location permission denied. Allow access in Settings or enter a place manually.');
     }
     const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     const addresses = await Location.reverseGeocodeAsync(position.coords);
@@ -406,7 +405,8 @@ export default function NativeApp() {
         ].filter((item): item is string => Boolean(item && item.trim()))
       : [];
     const suggestions = [...new Set(candidates)];
-    const value = suggestions[0] ?? 'Current location';
+    if (!suggestions.length) throw new Error('No place name found. Try again or enter a place manually.');
+    const value = suggestions[0];
     setLocationSuggestions(suggestions);
     if (editingDiscoveryId) setEditingLocation(value);
     else setLocation(value);
@@ -1261,7 +1261,7 @@ export default function NativeApp() {
             editingDiscovery ? setEditingObservation : setObservation
           }
           onChangeLocation={editingDiscovery ? setEditingLocation : setLocation}
-          onUseCurrentLocation={() => void useCurrentLocation()}
+          onUseCurrentLocation={useCurrentLocation}
           locationSuggestions={locationSuggestions}
           onBack={
             editingDiscovery

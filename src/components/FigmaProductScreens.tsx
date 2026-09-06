@@ -1592,6 +1592,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.78 },
 
   topBar: {
+    flexShrink: 0,
     height: 64,
     width: '100%',
     flexDirection: 'row',
@@ -1619,6 +1620,7 @@ const styles = StyleSheet.create({
   brandIcon: { width: 24, height: 24, resizeMode: 'contain' },
 
   bottomNavigation: {
+    flexShrink: 0,
     width: '100%',
     height: 60,
     paddingHorizontal: 24,
@@ -1631,7 +1633,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   navItem: {
-    width: 88,
+    flex: 1,
+    maxWidth: 104,
     height: 48,
     borderRadius: radius.md,
     alignItems: 'center',
@@ -2544,7 +2547,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  completeTitleBlock: { width: '100%', height: 106, gap: 24, alignItems: 'center' },
+  completeTitleBlock: { width: '100%', minHeight: 106, gap: 24, alignItems: 'center' },
   centerText: { textAlign: 'center' },
   completeBody: { width: 320 },
   reviewBanner: {
@@ -2631,13 +2634,14 @@ const styles = StyleSheet.create({
   },
   collectionIndex: {
     width: '100%',
-    height: 72,
+    minHeight: 72,
+    gap: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   collectionHeading: {
-    width: 277,
+    flex: 1,
     color: colors.ink,
     fontFamily: 'Archivo_600SemiBold',
     fontSize: 30,
@@ -2878,8 +2882,9 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     letterSpacing: -0.24,
   },
-  profileNameAction: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  profileNameAction: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 7 },
   profileNameInput: {
+    maxWidth: '100%',
     minWidth: 144,
     height: 42,
     borderBottomWidth: 1,
@@ -2904,7 +2909,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
-  profileTrophySection: { width: '100%', height: 146, gap: 8 },
+  profileTrophySection: { width: '100%', minHeight: 146, gap: 8 },
   weeklyCaseCard: {
     width: '100%',
     minHeight: 136,

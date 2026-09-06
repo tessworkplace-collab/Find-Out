@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   Archivo_600SemiBold,
@@ -9,6 +10,7 @@ import {
 import {
   Inter_400Regular,
   Inter_500Medium,
+  Inter_600SemiBold,
   Inter_700Bold,
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
@@ -23,7 +25,7 @@ type GateState = 'loading' | 'choice' | 'onboarding' | 'app';
 
 export default function NativeRoot() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold, Archivo_700Bold });
-  const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
+  const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [gateState, setGateState] = useState<GateState>('loading');
   const [draft, setDraft] = useState<DraftSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,7 +103,7 @@ export default function NativeRoot() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
 
       <View style={styles.brandRow}>
@@ -150,7 +152,7 @@ export default function NativeRoot() {
           <Text style={styles.secondaryButtonText}>{busy ? 'Clearing…' : 'Start new mission'}</Text>
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -163,8 +165,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
     paddingHorizontal: 24,
-    paddingTop: 72,
-    paddingBottom: 40,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   onboarding: {
     flex: 1,

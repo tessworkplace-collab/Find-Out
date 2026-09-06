@@ -663,13 +663,14 @@ function Document({
   const [loc, setLoc] = useState(initialLocation);
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
   const cancel = onCancel ?? (() => go('discover'));
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) return;
+  const useCurrentLocation = () => new Promise<void>((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('Location is unavailable. Enter a place manually.')); return; }
     navigator.geolocation.getCurrentPosition(async (position) => {
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`,
         );
+        if (!response.ok) throw new Error('Place lookup failed. Try again or enter a place manually.');
         const result = await response.json();
         const address = result.address ?? {};
         const suggestions = [...new Set([
@@ -678,12 +679,12 @@ function Document({
           [address.city ?? address.town ?? address.village, address.state].filter(Boolean).join(', '),
         ].filter(Boolean))] as string[];
         setLocationSuggestions(suggestions);
-        setLoc(suggestions[0] ?? 'Current location');
-      } catch {
-        setLoc('Current location');
-      }
-    });
-  };
+        if (!suggestions.length) throw new Error('No place name found. Enter a place manually.');
+        setLoc(suggestions[0]);
+        resolve();
+      } catch (error) { reject(error); }
+    }, () => reject(new Error('Location unavailable. Check permission and try again, or enter a place manually.')), { timeout: 15000 });
+  });
 
   return (
     <ProductDocumentScreen

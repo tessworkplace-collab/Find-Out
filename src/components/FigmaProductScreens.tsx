@@ -1,6 +1,8 @@
 import React from 'react';
 import {
   Image,
+  Platform,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
@@ -748,7 +751,7 @@ type ProductDocumentScreenProps = {
   location: string;
   onChangeObservation: (value: string) => void;
   onChangeLocation: (value: string) => void;
-  onUseCurrentLocation?: () => void;
+  onUseCurrentLocation?: () => Promise<void>;
   locationSuggestions?: string[];
   onBack: () => void;
   onExit?: () => void;
@@ -776,6 +779,16 @@ export function ProductDocumentScreen({
   submitLabel = 'Submit discovery',
   submitDisabled = false,
 }: ProductDocumentScreenProps) {
+  const [locating, setLocating] = React.useState(false);
+  const [locationError, setLocationError] = React.useState('');
+  const locate = async () => {
+    if (!onUseCurrentLocation || locating) return;
+    setLocating(true);
+    setLocationError('');
+    try { await onUseCurrentLocation(); }
+    catch (error) { setLocationError(error instanceof Error ? error.message : 'Location unavailable. Try again or enter a place manually.'); }
+    finally { setLocating(false); }
+  };
   const [showExitConfirmation, setShowExitConfirmation] = React.useState(false);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = React.useState(false);
   const observationMissing = observation.trim().length === 0;
@@ -849,12 +862,13 @@ export function ProductDocumentScreen({
           <View style={styles.locationHelperRow}>
             <Text style={styles.formHelper}>Add a location (optional)</Text>
             {onUseCurrentLocation ? (
-              <Pressable onPress={onUseCurrentLocation} style={styles.locationAction}>
+              <Pressable disabled={locating} onPress={() => void locate()} style={styles.locationAction}>
                 <Ionicons name="locate-outline" size={15} color={colors.blue} />
-                <Text style={styles.locationActionText}>Use current location</Text>
+                <Text style={styles.locationActionText}>{locating ? 'Finding location…' : locationError ? 'Retry location' : 'Use current location'}</Text>
               </Pressable>
             ) : null}
           </View>
+          {locationError ? <Text accessibilityLiveRegion="polite" style={styles.formHelperError}>{locationError}</Text> : null}
           {locationSuggestions.length > 0 ? (
             <View style={styles.locationSuggestions}>
               <Text style={styles.locationSuggestionsLabel}>NEARBY</Text>
@@ -1231,6 +1245,22 @@ export function ProductProfileScreen({
   );
   const [preferencesReady, setPreferencesReady] = React.useState(false);
   const [editingName, setEditingName] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState('');
+  const [profileError, setProfileError] = React.useState('');
+  const [savingName, setSavingName] = React.useState(false);
+  const [permissionMessage, setPermissionMessage] = React.useState('Check device location permission');
+  const checkLocationPermission = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        setPermissionMessage(`Location: ${result.state}. Manage access in browser site settings.`);
+      } else {
+        const result = await Location.requestForegroundPermissionsAsync();
+        setPermissionMessage(result.granted ? 'Location allowed while using the app.' : 'Location denied. You can still enter a place manually.');
+        if (!result.granted && !result.canAskAgain) await Linking.openSettings();
+      }
+    } catch { setPermissionMessage('Manage location permission in device or browser settings.'); }
+  };
 
   React.useEffect(() => {
     let mounted = true;
@@ -1247,22 +1277,18 @@ export function ProductProfileScreen({
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!preferencesReady) return;
-    saveUserPreferences(preferences).catch(() => undefined);
-  }, [preferences, preferencesReady]);
-
-  const togglePreference = (key: keyof UserPreferences) => {
-    if (key === 'displayName') return;
-    setPreferences((current) => ({ ...current, [key]: !current[key] }));
-  };
-
-  const saveName = () => {
-    setPreferences((current) => ({
-      ...current,
-      displayName: current.displayName.trim() || DEFAULT_USER_PREFERENCES.displayName,
-    }));
-    setEditingName(false);
+  const saveName = async () => {
+    const displayName = nameDraft.trim();
+    if (!displayName) { setProfileError('Enter a name.'); return; }
+    setSavingName(true);
+    setProfileError('');
+    const next = { ...preferences, displayName };
+    try {
+      await saveUserPreferences(next);
+      setPreferences(next);
+      setEditingName(false);
+    } catch { setProfileError('Could not save your name. Please try again.'); }
+    finally { setSavingName(false); }
   };
 
   return (
@@ -1280,22 +1306,24 @@ export function ProductProfileScreen({
           {editingName ? (
             <TextInput
               autoFocus
-              value={preferences.displayName}
-              onChangeText={(displayName) =>
-                setPreferences((current) => ({ ...current, displayName }))
-              }
+              value={nameDraft}
+              onChangeText={setNameDraft}
               onSubmitEditing={saveName}
-              onBlur={saveName}
               maxLength={24}
               style={styles.profileNameInput}
               returnKeyType="done"
             />
           ) : (
-            <Pressable onPress={() => setEditingName(true)} style={styles.profileNameAction}>
+            <Pressable disabled={!preferencesReady} onPress={() => { setNameDraft(preferences.displayName); setProfileError(''); setEditingName(true); }} style={styles.profileNameAction}>
               <Text style={styles.profileName}>{preferences.displayName}</Text>
               <Ionicons name="pencil-outline" size={15} color={colors.blue} />
             </Pressable>
           )}
+          {editingName ? <View style={{ flexDirection: 'row', gap: 24 }}>
+            <Pressable disabled={savingName} onPress={() => void saveName()}><Text style={styles.profileSectionLink}>{savingName ? 'Saving…' : 'Save'}</Text></Pressable>
+            <Pressable disabled={savingName} onPress={() => { setEditingName(false); setProfileError(''); }}><Text>Cancel</Text></Pressable>
+          </View> : null}
+          {profileError ? <Text accessibilityLiveRegion="polite" style={styles.formHelperError}>{profileError}</Text> : null}
           {equippedTitle ? <Text style={styles.profileTitle}>{equippedTitle}</Text> : null}
           <Text style={styles.profileStats}>{stats}</Text>
         </View>
@@ -1341,18 +1369,12 @@ export function ProductProfileScreen({
 
         <View style={styles.preferences}>
           <Text style={styles.preferencesTitle}>Preferences</Text>
-          <PreferenceRow
-            label="Mission reminders"
-            value={preferences.missionReminders}
-            disabled={!preferencesReady}
-            onPress={() => togglePreference('missionReminders')}
-          />
-          <PreferenceRow
-            label="Location access"
-            value={preferences.locationAccess}
-            disabled={!preferencesReady}
-            onPress={() => togglePreference('locationAccess')}
-          />
+          <Text style={styles.formLabel}>Mission reminders</Text>
+          <Text style={styles.formHelper}>Reminders are not available yet.</Text>
+          <Pressable onPress={() => void checkLocationPermission()} accessibilityRole="button">
+            <Text style={styles.profileSectionLink}>Location permission →</Text>
+          </Pressable>
+          <Text accessibilityLiveRegion="polite" style={styles.formHelper}>{permissionMessage}</Text>
         </View>
       </ScrollView>
 
@@ -1592,6 +1614,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.78 },
 
   topBar: {
+    flexShrink: 0,
     height: 64,
     width: '100%',
     flexDirection: 'row',
@@ -1619,6 +1642,7 @@ const styles = StyleSheet.create({
   brandIcon: { width: 24, height: 24, resizeMode: 'contain' },
 
   bottomNavigation: {
+    flexShrink: 0,
     width: '100%',
     height: 60,
     paddingHorizontal: 24,
@@ -1631,7 +1655,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   navItem: {
-    width: 88,
+    flex: 1,
+    maxWidth: 104,
     height: 48,
     borderRadius: radius.md,
     alignItems: 'center',
@@ -2544,7 +2569,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  completeTitleBlock: { width: '100%', height: 106, gap: 24, alignItems: 'center' },
+  completeTitleBlock: { width: '100%', minHeight: 106, gap: 24, alignItems: 'center' },
   centerText: { textAlign: 'center' },
   completeBody: { width: 320 },
   reviewBanner: {
@@ -2631,13 +2656,14 @@ const styles = StyleSheet.create({
   },
   collectionIndex: {
     width: '100%',
-    height: 72,
+    minHeight: 72,
+    gap: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   collectionHeading: {
-    width: 277,
+    flex: 1,
     color: colors.ink,
     fontFamily: 'Archivo_600SemiBold',
     fontSize: 30,
@@ -2878,8 +2904,9 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     letterSpacing: -0.24,
   },
-  profileNameAction: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  profileNameAction: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 7 },
   profileNameInput: {
+    maxWidth: '100%',
     minWidth: 144,
     height: 42,
     borderBottomWidth: 1,
@@ -2904,7 +2931,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
-  profileTrophySection: { width: '100%', height: 146, gap: 8 },
+  profileTrophySection: { width: '100%', minHeight: 146, gap: 8 },
   weeklyCaseCard: {
     width: '100%',
     minHeight: 136,

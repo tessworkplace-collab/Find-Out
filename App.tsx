@@ -26,6 +26,7 @@ import {
 import { otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
+import { loadCommunityDiscoveries, publishDiscovery, CommunityDiscovery } from './src/communityDiscoveries';
 import {
   FEATURED_MISSION_ID,
   formatEvidenceModes,
@@ -734,6 +735,9 @@ function OtherDiscoveries({
   back: () => void;
   mission: MissionDefinition;
 }) {
+  const [community, setCommunity] = useState<CommunityDiscovery[]>([]);
+  const [communityError, setCommunityError] = useState('');
+  useEffect(() => { loadCommunityDiscoveries().then(setCommunity).catch(() => setCommunityError('Community discoveries are unavailable.')); }, []);
   return (
     <Frame>
       <TopBar title="Other discoveries" onBack={back} />
@@ -752,16 +756,14 @@ function OtherDiscoveries({
         </View>
 
         <AppText style={styles.eyebrow}>WHAT OTHERS FOUND</AppText>
-        {otherDiscoveries.map((d, i) => (
-          <Pressable
-            key={d.id}
-            onPress={() => i === 0 && go('discovery-detail')}
-            style={styles.response}
-          >
-            <AppText style={styles.meta}>{d.index}</AppText>
-            <AppText style={styles.h3}>{d.title}</AppText>
-            <AppText style={styles.smallMuted}>{d.location}</AppText>
-          </Pressable>
+        {communityError ? <AppText style={styles.smallMuted}>{communityError}</AppText> : null}
+        {community.map((d) => (
+          <View key={d.id} style={styles.response}>
+            <AppText style={styles.meta}>{d.author_name}</AppText>
+            <AppText style={styles.h3}>{d.mission_title}</AppText>
+            <AppText style={styles.smallMuted}>{d.observation}</AppText>
+            {d.location ? <AppText style={styles.smallMuted}>{d.location}</AppText> : null}
+          </View>
         ))}
 
         <AppText style={styles.smallMuted}>
@@ -1093,6 +1095,7 @@ export default function App() {
       completedAt: new Date().toISOString(),
       day: 'TODAY',
     };
+    void publishDiscovery({ missionTitle: completed.title, observation: completed.note, location: completed.location }).catch(() => undefined);
     const next = [completed, ...collectionEvidence];
     setCollectionEvidence(next);
     setActiveMissionId(null);

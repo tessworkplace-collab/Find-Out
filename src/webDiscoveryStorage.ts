@@ -26,15 +26,27 @@ export async function readWebState<T>(key: string): Promise<T | undefined> {
     });
   } finally { db.close(); }
 }
-export async function writeWebState(key: string, value: unknown): Promise<void> {
-  const db = await openDatabase();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('state', 'readwrite');
-      tx.objectStore('state').put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error ?? new Error('Could not save. Check browser storage space.'));
-    });
-  } finally { db.close(); }
+let writes: Promise<void> = Promise.resolve();
+function writeEntries(entries: [string, unknown][]): Promise<void> {
+  const task = writes.catch(() => undefined).then(async () => {
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('state', 'readwrite');
+        for (const [key, value] of entries) tx.objectStore('state').put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error ?? new Error('Could not save. Check browser storage space.'));
+      });
+    } finally { db.close(); }
+  });
+  writes = task;
+  return task;
+}
+export function writeWebState(key: string, value: unknown): Promise<void> {
+  return writeEntries([[key, value]]);
+}
+export function commitWebDiscovery(items: WebDiscovery[]): Promise<void> {
+  // A reload must never restore an already submitted draft.
+  return writeEntries([['discoveries', items], ['draft', null]]);
 }

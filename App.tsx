@@ -28,7 +28,7 @@ import { otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
 import { PublicationStatus, CommunityScreen } from './src/components/CommunityScreens';
-import { readWebState, writeWebState, WebDiscovery, WebEvidence } from './src/webDiscoveryStorage';
+import { readWebState, writeWebState, commitWebDiscovery, WebDiscovery, WebEvidence } from './src/webDiscoveryStorage';
 import { WebEvidenceInput, WebEvidencePreview } from './src/components/WebEvidenceInput';
 import {
   FEATURED_MISSION_ID,
@@ -642,6 +642,7 @@ function Document({
   draft,
   busy = false,
   saveError = '',
+  onDiscardDraft,
 }: {
   go: (s: Screen) => void;
   back: () => void;
@@ -653,6 +654,7 @@ function Document({
   draft?: { observation: string; location: string; change: (observation: string, location: string) => void };
   busy?: boolean;
   saveError?: string;
+  onDiscardDraft?: () => void;
 }) {
   const [obs, setObs] = useState(initialObservation);
   const [loc, setLoc] = useState(initialLocation);
@@ -692,7 +694,7 @@ function Document({
       locationSuggestions={locationSuggestions}
       onBack={editing ? cancel : back}
       onExit={editing ? undefined : cancel}
-      onDiscard={editing ? undefined : cancel}
+      onDiscard={editing ? undefined : onDiscardDraft ?? cancel}
       onSubmit={() => (onSave ? onSave(draft?.observation ?? obs, draft?.location ?? loc) : go('mission-complete'))}
       submitLabel={busy ? 'Saving…' : editing ? 'Save changes' : 'Submit discovery'}
       submitDisabled={busy}
@@ -977,13 +979,13 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
   useEffect(() => {
-    if (!storageReady) return;
+    if (!storageReady || saving) return;
     const timer = setTimeout(() => {
       writeWebState('draft', { missionId: activeMissionId, evidence: capturedEvidence, observation: draftNote, location: draftLocation })
         .catch(() => setSaveError('Draft could not be saved. Check browser storage space.'));
     }, 250);
     return () => clearTimeout(timer);
-  }, [storageReady, activeMissionId, capturedEvidence, draftNote, draftLocation]);
+  }, [storageReady, saving, activeMissionId, capturedEvidence, draftNote, draftLocation]);
   const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
   const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
   const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
@@ -1082,7 +1084,7 @@ export default function App() {
       day: 'TODAY',
     };
     const next = [completed, ...collectionEvidence];
-    await writeWebState('discoveries', next);
+    await commitWebDiscovery(next);
     setCollectionEvidence(next);
     setActiveMissionId(null);
     setSelectedEvidenceId(completed.id);
@@ -1215,6 +1217,7 @@ export default function App() {
           );
         }
         return <Document go={go} back={back} onSave={submitMission} busy={saving || !capturedEvidence} saveError={saveError}
+          onDiscardDraft={() => { setCapturedEvidence(null); setActiveMissionId(null); setDraftNote(''); setDraftLocation(''); go('discover'); }}
           draft={{ observation: draftNote, location: draftLocation, change: (note, place) => { setDraftNote(note); setDraftLocation(place); } }} />;
       case 'mission-complete':
         return (

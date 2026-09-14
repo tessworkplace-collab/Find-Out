@@ -744,11 +744,7 @@ function OtherDiscoveries({
     <Frame>
       <TopBar title="Other discoveries" onBack={back} />
       <ScrollView contentContainerStyle={styles.content}>
-        <TitleBlock
-          title="See what others found"
-          body="See how others responded to the same mission."
-        />
-        <AppText style={styles.eyebrow}>{mission.title.toUpperCase()}</AppText>
+        <AppText style={styles.eyebrow}>MISSION · {mission.title.toUpperCase()}</AppText>
         <AppText style={styles.body}>{mission.prompt}</AppText>
 
         <View style={[styles.response, { backgroundColor: colors.limeSubtle }]}>

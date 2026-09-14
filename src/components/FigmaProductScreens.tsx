@@ -346,6 +346,52 @@ export function ProductOnboardingScreen({
   );
 }
 
+type ProductHowItWorksScreenProps = {
+  onBack: () => void;
+  onStart: () => void;
+};
+
+const HOW_IT_WORKS_STEPS = [
+  { number: '01', icon: 'eye-outline' as const, title: 'Notice', body: 'Choose a mission and look for the missing detail.' },
+  { number: '02', icon: 'search-outline' as const, title: 'Investigate', body: 'Decide where to begin and explore it in the real world.' },
+  { number: '03', icon: 'document-text-outline' as const, title: 'Submit', body: 'Capture evidence and add a short observation.' },
+  { number: '04', icon: 'people-outline' as const, title: 'Reveal', body: 'Compare your finding with discoveries from other explorers.' },
+];
+
+export function ProductHowItWorksScreen({ onBack, onStart }: ProductHowItWorksScreenProps) {
+  return (
+    <View style={styles.screen}>
+      <FigmaTopBar title="How it works" type="back" onLeading={onBack} />
+      <ScrollView contentContainerStyle={styles.howContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.howIntro}>
+          <Text style={styles.h1}>One mission. Your own way in.</Text>
+          <Text style={styles.body}>Find Out gives you a question, then leaves the direction and discovery to you.</Text>
+        </View>
+
+        <View style={styles.howSteps}>
+          {HOW_IT_WORKS_STEPS.map((step, index) => (
+            <View key={step.number} style={styles.howStepRow}>
+              <View style={styles.howRail}>
+                <View style={[styles.howIcon, index === HOW_IT_WORKS_STEPS.length - 1 && styles.howIconReveal]}>
+                  <Ionicons name={step.icon} size={24} color={colors.blue} />
+                </View>
+                {index < HOW_IT_WORKS_STEPS.length - 1 ? <View style={styles.howConnector} /> : null}
+              </View>
+              <View style={styles.howStepCopy}>
+                <Text style={styles.howNumber}>STEP {step.number}</Text>
+                <Text style={styles.howTitle}>{step.title}</Text>
+                <Text style={styles.howBody}>{step.body}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <FigmaActionButton label="Start exploring" onPress={onStart} />
+      </ScrollView>
+    </View>
+  );
+}
+
 type ProductDiscoverScreenProps = {
   missions: MissionDefinition[];
   missionDeck?: MissionDeckCard[];
@@ -1880,6 +1926,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textAlign: 'center',
   },
+  howContent: {
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 32,
+    gap: 30,
+  },
+  howIntro: { gap: 14 },
+  howSteps: { width: '100%' },
+  howStepRow: { minHeight: 116, flexDirection: 'row', gap: 18 },
+  howRail: { width: 52, alignItems: 'center' },
+  howIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.blueSubtle,
+    borderWidth: 1,
+    borderColor: colors.blue,
+  },
+  howIconReveal: { backgroundColor: colors.limeSubtle },
+  howConnector: { width: 1, flex: 1, backgroundColor: colors.border },
+  howStepCopy: { flex: 1, paddingTop: 2, gap: 5, paddingBottom: 22 },
+  howNumber: { color: colors.blue, fontFamily: 'Inter_600SemiBold', fontSize: 11, lineHeight: 15, letterSpacing: 1 },
+  howTitle: { color: colors.ink, fontFamily: 'Archivo_600SemiBold', fontSize: 22, lineHeight: 27 },
+  howBody: { color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
 
   discoverContent: {
     paddingHorizontal: 24,

@@ -72,6 +72,7 @@ import {
   updateCompletedDiscovery,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
+import { loadCommunityDiscoveries, publishDiscovery, CommunityDiscovery } from './src/communityDiscoveries';
 import {
   DEFAULT_TROPHY_STATE,
   equipTrophyTitle,
@@ -111,7 +112,8 @@ type Screen =
   | 'discoveries'
   | 'profile'
   | 'trophies'
-  | 'discovery-detail';
+  | 'discovery-detail'
+  | 'community';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
 
@@ -421,6 +423,8 @@ export default function NativeApp() {
   const [editingObservation, setEditingObservation] = useState('');
   const [editingLocation, setEditingLocation] = useState('');
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
+  const [community, setCommunity] = useState<CommunityDiscovery[]>([]);
+  const [communityError, setCommunityError] = useState('');
   const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
   const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
 
@@ -1007,7 +1011,9 @@ export default function NativeApp() {
       setDiscoveries(nextDiscoveries);
       setTrophyState(synced.state);
       setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
+      void publishDiscovery({ missionTitle: completed.missionTitle, observation: completed.observation, location: completed.location }).catch(() => undefined);
       await saveTrophyState(synced.state).catch(() => undefined);
+      void publishDiscovery({ missionTitle: completed.missionTitle, observation: completed.observation, location: completed.location }).catch(() => undefined);
       await clearDraft(evidence).catch(() => undefined);
       setEvidence(null);
       setActiveMissionId(null);
@@ -1293,12 +1299,16 @@ export default function NativeApp() {
     );
   }
 
+  if (screen === 'community') {
+    return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={{ padding: 24, gap: 16 }}><Pressable onPress={() => setScreen('complete')}><Text style={{ color: colors.blue, fontFamily: 'Inter_600SemiBold' }}>‹ Back</Text></Pressable><Text style={{ fontSize: 30, lineHeight: 36, color: colors.ink, fontFamily: 'Archivo_600SemiBold' }}>Community discoveries</Text><Text style={styles.body}>Recent findings submitted by other explorers.</Text>{communityError ? <Text style={{ color: '#c43131' }}>{communityError}</Text> : null}{community.map(item => <View key={item.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 18, gap: 8 }}><Text style={styles.eyebrow}>{item.author_name}</Text><Text style={styles.h3}>{item.mission_title}</Text><Text style={styles.body}>{item.observation}</Text>{item.location ? <Text style={styles.smallMuted}>{item.location}</Text> : null}</View>)}</ScrollView></SafeAreaView>;
+  }
+
   if (screen === 'complete') {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductCompleteScreen
           onClose={() => setScreen('discover')}
-          onOtherDiscoveries={openMyDiscoveries}
+          onOtherDiscoveries={() => { setCommunityError(''); loadCommunityDiscoveries().then(setCommunity).catch(error => setCommunityError(error instanceof Error ? error.message : 'Community discoveries are unavailable.')).finally(() => setScreen('community')); }}
           onRemix={() => void startMissionRemix()}
           onExplore={resetMission}
           unlockedTrophy={

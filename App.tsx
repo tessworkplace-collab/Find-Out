@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Image,
   Pressable,
   SafeAreaView,
@@ -26,7 +27,9 @@ import {
 import { otherDiscoveries, yourDiscovery } from './src/data';
 import { BRAND_MARK_URI } from './src/brand';
 import { colors, radius, typography } from './src/theme';
-import { loadCommunityDiscoveries, publishDiscovery, CommunityDiscovery } from './src/communityDiscoveries';
+import { PublicationStatus, CommunityScreen } from './src/components/CommunityScreens';
+import { readWebState, writeWebState, WebDiscovery, WebEvidence } from './src/webDiscoveryStorage';
+import { WebEvidenceInput, WebEvidencePreview } from './src/components/WebEvidenceInput';
 import {
   FEATURED_MISSION_ID,
   formatEvidenceModes,
@@ -94,23 +97,6 @@ type Screen =
   | 'share';
 
 type CaptureMode = 'photo' | 'video' | 'audio';
-
-type WebDiscovery = CollectionEvidence & {
-  missionId: string;
-  evidenceType: CaptureMode;
-  location: string;
-  completedAt: string;
-};
-
-const DEFAULT_WEB_DISCOVERIES: WebDiscovery[] = DEFAULT_COLLECTION_EVIDENCE.map(
-  (item, index) => ({
-    ...item,
-    missionId: 'dead-link',
-    evidenceType: 'photo',
-    location: '',
-    completedAt: new Date(Date.now() - index * 86_400_000).toISOString(),
-  }),
-);
 
 function toTrophyDiscoveries(items: WebDiscovery[]): TrophyDiscovery[] {
   return items.map((item) => ({
@@ -653,6 +639,9 @@ function Document({
   editing = false,
   onCancel,
   onSave,
+  draft,
+  busy = false,
+  saveError = '',
 }: {
   go: (s: Screen) => void;
   back: () => void;
@@ -661,6 +650,9 @@ function Document({
   editing?: boolean;
   onCancel?: () => void;
   onSave?: (observation: string, location: string) => void;
+  draft?: { observation: string; location: string; change: (observation: string, location: string) => void };
+  busy?: boolean;
+  saveError?: string;
 }) {
   const [obs, setObs] = useState(initialObservation);
   const [loc, setLoc] = useState(initialLocation);
@@ -684,6 +676,7 @@ function Document({
         setLocationSuggestions(suggestions);
         if (!suggestions.length) throw new Error('No place name found. Enter a place manually.');
         setLoc(suggestions[0]);
+        draft?.change(draft.observation, suggestions[0]);
         resolve();
       } catch (error) { reject(error); }
     }, () => reject(new Error('Location unavailable. Check permission and try again, or enter a place manually.')), { timeout: 15000 });
@@ -691,17 +684,19 @@ function Document({
 
   return (
     <ProductDocumentScreen
-      observation={obs}
-      location={loc}
-      onChangeObservation={setObs}
-      onChangeLocation={setLoc}
+      observation={draft?.observation ?? obs}
+      location={draft?.location ?? loc}
+      onChangeObservation={(value) => { setObs(value); draft?.change(value, draft.location); }}
+      onChangeLocation={(value) => { setLoc(value); draft?.change(draft.observation, value); }}
       onUseCurrentLocation={useCurrentLocation}
       locationSuggestions={locationSuggestions}
       onBack={editing ? cancel : back}
       onExit={editing ? undefined : cancel}
       onDiscard={editing ? undefined : cancel}
-      onSubmit={() => (onSave ? onSave(obs, loc) : go('mission-complete'))}
-      submitLabel={editing ? 'Save changes' : 'Submit discovery'}
+      onSubmit={() => (onSave ? onSave(draft?.observation ?? obs, draft?.location ?? loc) : go('mission-complete'))}
+      submitLabel={busy ? 'Saving…' : editing ? 'Save changes' : 'Submit discovery'}
+      submitDisabled={busy}
+      saveError={saveError}
     />
   );
 }
@@ -711,73 +706,23 @@ function MissionComplete({
   unlockedTrophy,
   onExplore,
   onRemix,
+  publicationStatus,
 }: {
   go: (s: Screen) => void;
   unlockedTrophy?: { name: string; description: string } | null;
   onExplore: () => void;
   onRemix: () => void;
+  publicationStatus?: React.ReactNode;
 }) {
   return (
     <ProductCompleteScreen
+      publicationStatus={publicationStatus}
       onClose={() => go('discover')}
       onOtherDiscoveries={() => go('other-discoveries')}
       onExplore={onExplore}
       onRemix={onRemix}
       unlockedTrophy={unlockedTrophy}
     />
-  );
-}
-
-function OtherDiscoveries({
-  go,
-  back,
-  mission,
-  submitted,
-}: {
-  go: (s: Screen) => void;
-  back: () => void;
-  mission: MissionDefinition;
-  submitted?: WebDiscovery;
-}) {
-  const [community, setCommunity] = useState<CommunityDiscovery[]>([]);
-  const [communityError, setCommunityError] = useState('');
-  useEffect(() => { loadCommunityDiscoveries().then(setCommunity).catch(() => setCommunityError('Community discoveries are unavailable.')); }, []);
-  return (
-    <Frame>
-      <TopBar title="Other discoveries" onBack={back} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <AppText style={styles.eyebrow}>MISSION · {mission.title.toUpperCase()}</AppText>
-        <AppText style={styles.body}>{mission.prompt}</AppText>
-
-        <View style={[styles.response, { backgroundColor: colors.limeSubtle }]}>
-          <AppText style={styles.eyebrow}>YOUR DISCOVERY</AppText>
-          <AppText style={styles.h3}>{submitted?.title ?? mission.title}</AppText>
-          <AppText style={styles.smallMuted}>{submitted?.note ?? 'Your submitted finding'}</AppText>
-          {submitted?.location ? <AppText style={styles.smallMuted}>{submitted.location}</AppText> : null}
-        </View>
-
-        <AppText style={styles.eyebrow}>WHAT OTHERS FOUND</AppText>
-        {communityError ? <AppText style={styles.smallMuted}>{communityError}</AppText> : null}
-        {community.map((d) => (
-          <View key={d.id} style={styles.response}>
-            <AppText style={styles.meta}>{d.author_name}</AppText>
-            <AppText style={styles.h3}>{d.mission_title}</AppText>
-            <AppText style={styles.smallMuted}>{d.observation}</AppText>
-            {d.location ? <AppText style={styles.smallMuted}>{d.location}</AppText> : null}
-          </View>
-        ))}
-
-        <AppText style={styles.smallMuted}>
-          Unlocked after your submission — other responses were hidden while you explored.
-        </AppText>
-
-        <Button
-          outline
-          label="Explore another mission"
-          onPress={() => go('discover')}
-        />
-      </ScrollView>
-    </Frame>
   );
 }
 
@@ -906,12 +851,14 @@ function EvidenceDetail({
 }: {
   go: (s: Screen) => void;
   back: () => void;
-  evidence: CollectionEvidence;
+  evidence: WebDiscovery;
   onEdit: () => void;
 }) {
   return (
     <ProductEvidenceDetailScreen
       title={evidence.title}
+      media={<WebEvidencePreview evidence={evidence.evidence} />}
+      publicationStatus={<PublicationStatus key={evidence.id} item={{ id: evidence.id, missionTitle: evidence.title, observation: evidence.note, location: evidence.location }} />}
       day={evidence.day}
       note={evidence.note}
       onBack={back}
@@ -1002,12 +949,41 @@ export default function App() {
   const [missionDeckSeed] = useState(() => getDailyDeckKey());
   const [missionDeckRevealed, setMissionDeckRevealed] = useState(true);
   const [missionDeckShuffleRound, setMissionDeckShuffleRound] = useState(0);
-  const [selectedEvidenceId, setSelectedEvidenceId] = useState(
-    DEFAULT_WEB_DISCOVERIES[0].id,
-  );
-  const [collectionEvidence, setCollectionEvidence] = useState<WebDiscovery[]>(
-    () => DEFAULT_WEB_DISCOVERIES.map((item) => ({ ...item })),
-  );
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState('');
+  const [collectionEvidence, setCollectionEvidence] = useState<WebDiscovery[]>([]);
+  const [capturedEvidence, setCapturedEvidence] = useState<WebEvidence | null>(null);
+  const [draftNote, setDraftNote] = useState('');
+  const [draftLocation, setDraftLocation] = useState('');
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageError, setStorageError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const saveLock = useRef(false);
+  type Draft = { missionId: string | null; evidence: WebEvidence | null; observation: string; location: string };
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([readWebState<WebDiscovery[]>('discoveries'), readWebState<Draft>('draft')])
+      .then(([items, draft]) => {
+        if (!mounted) return;
+        setCollectionEvidence(items ?? []);
+        setSelectedEvidenceId(items?.[0]?.id ?? '');
+        if (draft?.missionId && getMissionById(draft.missionId)) {
+          setActiveMissionId(draft.missionId); setSelectedMissionId(draft.missionId);
+          setCapturedEvidence(draft.evidence); setDraftNote(draft.observation); setDraftLocation(draft.location);
+          if (draft.evidence) setCaptureMode(draft.evidence.type);
+        }
+        setStorageReady(true);
+      }).catch(() => { if (mounted) setStorageError('Could not open saved discoveries. Enable browser storage, then reload.'); });
+    return () => { mounted = false; };
+  }, []);
+  useEffect(() => {
+    if (!storageReady) return;
+    const timer = setTimeout(() => {
+      writeWebState('draft', { missionId: activeMissionId, evidence: capturedEvidence, observation: draftNote, location: draftLocation })
+        .catch(() => setSaveError('Draft could not be saved. Check browser storage space.'));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [storageReady, activeMissionId, capturedEvidence, draftNote, draftLocation]);
   const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
   const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
   const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
@@ -1039,12 +1015,13 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-    loadTrophyState().then((stored) => {
+    loadTrophyState().then(async (stored) => {
       if (!mounted) return;
-      const synced = syncTrophyState(toTrophyDiscoveries(DEFAULT_WEB_DISCOVERIES), stored);
+      const saved = await readWebState<WebDiscovery[]>('discoveries');
+        const synced = syncTrophyState(toTrophyDiscoveries(saved ?? []), stored);
       setTrophyState(synced.state);
       saveTrophyState(synced.state).catch(() => undefined);
-    });
+    }).catch(() => undefined);
     return () => {
       mounted = false;
     };
@@ -1071,6 +1048,9 @@ export default function App() {
   };
 
   const beginMission = () => {
+    if (activeMissionId === selectedMission.id) { go(capturedEvidence ? 'document' : 'investigate'); return; }
+    if (activeMissionId && !window.confirm('Replace your unfinished mission and its draft?')) return;
+    setCapturedEvidence(null); setDraftNote(''); setDraftLocation(''); setSaveError('');
     setActiveMissionId(selectedMission.id);
     setActiveRemix(null);
     setCaptureMode(selectedMission.evidenceModes[0] ?? 'photo');
@@ -1085,25 +1065,33 @@ export default function App() {
     return synced;
   };
 
-  const submitMission = (observation: string, discoveryLocation: string) => {
+  const submitMission = async (observation: string, discoveryLocation: string) => {
+    if (saveLock.current || !capturedEvidence) return;
+    saveLock.current = true; setSaving(true); setSaveError('');
+    try {
     const completed: WebDiscovery = {
       id: `${flowMission.id}-${Date.now()}`,
       missionId: flowMission.id,
-      evidenceType: captureMode,
+      evidenceType: capturedEvidence.type,
+      evidence: capturedEvidence,
+      mediaUri: capturedEvidence.type === 'photo' ? capturedEvidence.uri : undefined,
       title: flowMission.title,
       note: observation,
       location: discoveryLocation,
       completedAt: new Date().toISOString(),
       day: 'TODAY',
     };
-    void publishDiscovery({ missionTitle: completed.title, observation: completed.note, location: completed.location }).catch(() => undefined);
     const next = [completed, ...collectionEvidence];
+    await writeWebState('discoveries', next);
     setCollectionEvidence(next);
     setActiveMissionId(null);
     setSelectedEvidenceId(completed.id);
     const synced = updateTrophiesFor(next);
     setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
+    setCapturedEvidence(null); setDraftNote(''); setDraftLocation('');
     go('mission-complete');
+    } catch { setSaveError('Could not save discovery. Check browser storage space and retry.'); }
+    finally { saveLock.current = false; setSaving(false); }
   };
 
   const exploreAnotherMission = () => {
@@ -1115,6 +1103,7 @@ export default function App() {
   };
 
   const remixMission = () => {
+    setCapturedEvidence(null); setDraftNote(''); setDraftLocation('');
     const previous = collectionEvidence.find(
       (item) => item.missionId === flowMission.id,
     );
@@ -1177,16 +1166,13 @@ export default function App() {
       case 'evidence':
         return <Evidence go={go} back={back} mission={flowMission} remix={activeRemix} />;
       case 'capture':
-        return <Capture mode={captureMode} go={go} back={back} />;
+        return <WebEvidenceInput mode={captureMode} onBack={back} onSelect={(value) => { setCapturedEvidence(value); go('evidence-preview'); }} />;
       case 'evidence-preview':
-        return (
-          <EvidencePreview
-            mode={captureMode}
-            go={go}
-            back={back}
-            onRetake={retakeEvidence}
-          />
-        );
+        return capturedEvidence ? <ProductEvidencePreviewScreen
+          media={<WebEvidencePreview evidence={capturedEvidence} />} mediaLabel={capturedEvidence.name}
+          onBack={back} onExit={() => go('discover')} onUse={() => go('document')}
+          onRetake={retakeEvidence}
+        /> : <WebEvidenceInput mode={captureMode} onBack={back} onSelect={(value) => { setCapturedEvidence(value); go('evidence-preview'); }} />;
       case 'document':
         if (editingEvidenceId) {
           const editingEvidence = collectionEvidence.find(
@@ -1203,12 +1189,18 @@ export default function App() {
                 setEditingEvidenceId(null);
                 back();
               }}
-              onSave={(observation, discoveryLocation) => {
+              busy={saving}
+              saveError={saveError}
+              onSave={async (observation, discoveryLocation) => {
+                if (saveLock.current) return;
+                saveLock.current = true; setSaving(true); setSaveError('');
+                try {
                 const next = collectionEvidence.map((item) =>
                   item.id === editingEvidenceId
                     ? { ...item, note: observation, location: discoveryLocation }
                     : item,
                 );
+                await writeWebState('discoveries', next);
                 setCollectionEvidence(next);
                 updateTrophiesFor(next);
                 setEditingEvidenceId(null);
@@ -1216,14 +1208,22 @@ export default function App() {
                   current.at(-1) === 'evidence-detail' ? current.slice(0, -1) : current,
                 );
                 setScreen('evidence-detail');
+                } catch { setSaveError('Could not save changes. Please retry.'); }
+                finally { saveLock.current = false; setSaving(false); }
               }}
             />
           );
         }
-        return <Document go={go} back={back} onSave={submitMission} />;
+        return <Document go={go} back={back} onSave={submitMission} busy={saving || !capturedEvidence} saveError={saveError}
+          draft={{ observation: draftNote, location: draftLocation, change: (note, place) => { setDraftNote(note); setDraftLocation(place); } }} />;
       case 'mission-complete':
         return (
           <MissionComplete
+            publicationStatus={collectionEvidence.find(item => item.id === selectedEvidenceId) ? <PublicationStatus
+              key={selectedEvidenceId}
+              item={{ id: selectedEvidenceId, missionTitle: collectionEvidence.find(item => item.id === selectedEvidenceId)!.title,
+                observation: collectionEvidence.find(item => item.id === selectedEvidenceId)!.note,
+                location: collectionEvidence.find(item => item.id === selectedEvidenceId)!.location }} /> : undefined}
             go={go}
             onExplore={exploreAnotherMission}
             onRemix={remixMission}
@@ -1235,7 +1235,11 @@ export default function App() {
           />
         );
       case 'other-discoveries':
-        return <OtherDiscoveries go={go} back={back} mission={flowMission} submitted={collectionEvidence.find((item) => item.id === selectedEvidenceId) ?? collectionEvidence[0]} />;
+        {
+          const own = collectionEvidence.find(item => item.id === selectedEvidenceId);
+          return own ? <CommunityScreen item={{ id: own.id, missionTitle: own.title, observation: own.note, location: own.location }}
+            prompt={getMissionById(own.missionId)?.prompt ?? ''} onBack={back} onExplore={exploreAnotherMission} /> : null;
+        }
       case 'discovery-detail':
         return <DiscoveryDetail back={back} mission={flowMission} />;
       case 'my-discoveries':
@@ -1244,7 +1248,7 @@ export default function App() {
             go={go}
             evidence={collectionEvidence}
             activeMissionTitle={activeMission?.title}
-            onContinue={activeMission ? () => go('investigate') : undefined}
+            onContinue={activeMission ? () => go(capturedEvidence ? 'document' : 'investigate') : undefined}
             onSelectEvidence={setSelectedEvidenceId}
           />
         );
@@ -1294,6 +1298,7 @@ export default function App() {
     }
   }, [
     screen,
+    capturedEvidence, draftNote, draftLocation, saving, saveError,
     captureMode,
     selectedEvidenceId,
     collectionEvidence,
@@ -1313,7 +1318,8 @@ export default function App() {
     weeklyCaseProgress,
   ]);
 
-  if (!aLoaded || !iLoaded) return null;
+  if (storageError) return <View style={{ padding: 24 }}><AppText>{storageError}</AppText><Button label="Reload" onPress={() => window.location.reload()} /></View>;
+  if (!aLoaded || !iLoaded || !storageReady) return <AppText>Loading saved discoveries…</AppText>;
 
   return (
     <SafeAreaView style={styles.safe}>

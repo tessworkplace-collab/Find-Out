@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Test publication recovery
+        run: node --test tests/community.test.cjs
+
       - name: Typecheck app
         run: npm run typecheck
 

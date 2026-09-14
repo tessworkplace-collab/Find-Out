@@ -67,6 +67,7 @@ import {
   ProductEvidencePickerScreen,
   ProductEvidencePreviewScreen,
   ProductInvestigateScreen,
+  ProductHowItWorksScreen,
   ProductMissionDetailScreen,
   ProductOnboardingScreen,
   ProductProfileScreen,
@@ -75,6 +76,7 @@ import {
 
 type Screen =
   | 'onboarding'
+  | 'how-it-works'
   | 'discover'
   | 'mission-detail'
   | 'investigate'
@@ -368,7 +370,7 @@ function Onboarding({ go }: { go: (s: Screen) => void }) {
   return (
     <ProductOnboardingScreen
       onStart={() => go('discover')}
-      onHowItWorks={() => go('discover')}
+      onHowItWorks={() => go('how-it-works')}
     />
   );
 }
@@ -1152,6 +1154,8 @@ export default function App() {
     switch (screen) {
       case 'onboarding':
         return <Onboarding go={go} />;
+      case 'how-it-works':
+        return <ProductHowItWorksScreen onBack={back} onStart={() => go('discover')} />;
       case 'discover':
         return (
           <Discover

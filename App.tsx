@@ -656,6 +656,8 @@ function Document({
   saveError?: string;
   onDiscardDraft?: () => void;
 }) {
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
   const [obs, setObs] = useState(initialObservation);
   const [loc, setLoc] = useState(initialLocation);
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
@@ -678,7 +680,7 @@ function Document({
         setLocationSuggestions(suggestions);
         if (!suggestions.length) throw new Error('No place name found. Enter a place manually.');
         setLoc(suggestions[0]);
-        draft?.change(draft.observation, suggestions[0]);
+        latestDraft.current?.change(latestDraft.current.observation, suggestions[0]);
         resolve();
       } catch (error) { reject(error); }
     }, () => reject(new Error('Location unavailable. Check permission and try again, or enter a place manually.')), { timeout: 15000 });

@@ -793,6 +793,7 @@ export function ProductEvidencePreviewScreen({
 }
 
 type ProductDocumentScreenProps = {
+  saveError?: string;
   observation: string;
   location: string;
   onChangeObservation: (value: string) => void;
@@ -810,6 +811,7 @@ type ProductDocumentScreenProps = {
 };
 
 export function ProductDocumentScreen({
+  saveError,
   observation,
   location,
   onChangeObservation,
@@ -886,6 +888,7 @@ export function ProductDocumentScreen({
             value={observation}
             onChangeText={onChangeObservation}
             placeholder="What did you notice?"
+            maxLength={600}
             placeholderTextColor={colors.muted}
             multiline
             style={[styles.formInput, styles.observationInput, showObservationError && styles.formInputError]}
@@ -932,6 +935,7 @@ export function ProductDocumentScreen({
           ) : null}
         </View>
 
+        {saveError ? <Text accessibilityLiveRegion="polite" style={styles.formHelperError}>{saveError}</Text> : null}
         <View style={styles.evidenceBanner}>
           <Ionicons name="information-circle-outline" size={20} color={colors.blue} />
           <View style={styles.evidenceBannerCopy}>
@@ -993,6 +997,7 @@ export function ProductDocumentScreen({
 }
 
 type ProductCompleteScreenProps = {
+  publicationStatus?: React.ReactNode;
   onClose: () => void;
   onOtherDiscoveries: () => void;
   onExplore: () => void;
@@ -1004,6 +1009,7 @@ type ProductCompleteScreenProps = {
 };
 
 export function ProductCompleteScreen({
+  publicationStatus,
   onClose,
   onOtherDiscoveries,
   onExplore,
@@ -1025,7 +1031,7 @@ export function ProductCompleteScreen({
         <View style={styles.completeTitleBlock}>
           <Text style={[styles.h1, styles.centerText]}>Discovery submitted</Text>
           <Text style={[styles.body, styles.centerText, styles.completeBody]}>
-            Your evidence has been saved and sent to the prototype review state.
+            Your evidence and observation are saved on this device.
           </Text>
         </View>
 
@@ -1033,6 +1039,8 @@ export function ProductCompleteScreen({
           <Text style={styles.reviewTitle}>DISCOVERY SAVED</Text>
           <Text style={styles.reviewText}>Only submitted missions count toward Trophy progress.</Text>
         </View>
+
+        {publicationStatus}
 
         {unlockedTrophy ? (
           <View style={styles.trophySection}>
@@ -1212,6 +1220,7 @@ export function ProductCollectionScreen({
 }
 
 type ProductEvidenceDetailScreenProps = {
+  publicationStatus?: React.ReactNode;
   title: string;
   day: string;
   note: string;
@@ -1222,6 +1231,7 @@ type ProductEvidenceDetailScreenProps = {
 };
 
 export function ProductEvidenceDetailScreen({
+  publicationStatus,
   title,
   day,
   note,
@@ -1255,6 +1265,7 @@ export function ProductEvidenceDetailScreen({
           <Text style={styles.observationBody}>{note}</Text>
         </View>
 
+        {publicationStatus}
         {onEdit ? <FigmaActionButton label="Edit note" outline onPress={onEdit} /> : null}
         {onShare ? (
           <FigmaActionButton label="Share discovery" outline onPress={onShare} />

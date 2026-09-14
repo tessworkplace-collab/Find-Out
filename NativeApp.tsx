@@ -72,7 +72,7 @@ import {
   updateCompletedDiscovery,
 } from './src/discoveryStorage';
 import { colors, radius, typography } from './src/theme';
-import { loadCommunityDiscoveries, publishDiscovery, CommunityDiscovery } from './src/communityDiscoveries';
+import { PublicationStatus, CommunityScreen } from './src/components/CommunityScreens';
 import {
   DEFAULT_TROPHY_STATE,
   equipTrophyTitle,
@@ -423,8 +423,8 @@ export default function NativeApp() {
   const [editingObservation, setEditingObservation] = useState('');
   const [editingLocation, setEditingLocation] = useState('');
   const [submittingDiscovery, setSubmittingDiscovery] = useState(false);
-  const [community, setCommunity] = useState<CommunityDiscovery[]>([]);
-  const [communityError, setCommunityError] = useState('');
+  const submissionLock = useRef(false);
+  const [lastSubmittedDiscovery, setLastSubmittedDiscovery] = useState<CompletedDiscovery | null>(null);
   const [trophyState, setTrophyState] = useState<TrophyState>(DEFAULT_TROPHY_STATE);
   const [lastUnlockedTrophyId, setLastUnlockedTrophyId] = useState<string | null>(null);
 
@@ -969,7 +969,8 @@ export default function NativeApp() {
   };
 
   const submitDiscovery = async () => {
-    if (submittingDiscovery || (!editingDiscoveryId && !evidence)) return;
+    if (submissionLock.current || submittingDiscovery || (!editingDiscoveryId && !evidence)) return;
+    submissionLock.current = true;
 
     setSubmittingDiscovery(true);
     try {
@@ -1011,12 +1012,11 @@ export default function NativeApp() {
       setDiscoveries(nextDiscoveries);
       setTrophyState(synced.state);
       setLastUnlockedTrophyId(synced.newlyUnlocked[0] ?? null);
-      void publishDiscovery({ missionTitle: completed.missionTitle, observation: completed.observation, location: completed.location }).catch(() => undefined);
       await saveTrophyState(synced.state).catch(() => undefined);
-      void publishDiscovery({ missionTitle: completed.missionTitle, observation: completed.observation, location: completed.location }).catch(() => undefined);
       await clearDraft(evidence).catch(() => undefined);
       setEvidence(null);
       setActiveMissionId(null);
+      setLastSubmittedDiscovery(completed);
       setSubmitted(true);
       updateHighestStep(3);
       setScreen('complete');
@@ -1026,6 +1026,7 @@ export default function NativeApp() {
         error instanceof Error ? error.message : 'Please try again.',
       );
     } finally {
+      submissionLock.current = false;
       setSubmittingDiscovery(false);
     }
   };
@@ -1213,6 +1214,10 @@ export default function NativeApp() {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductEvidenceDetailScreen
+          publicationStatus={<PublicationStatus key={selectedDiscovery.id} item={{
+            id: selectedDiscovery.id, missionTitle: selectedDiscovery.missionTitle,
+            observation: selectedDiscovery.observation, location: selectedDiscovery.location,
+          }} />}
           title={selectedDiscovery.missionTitle}
           day={day}
           note={selectedDiscovery.observation}
@@ -1299,17 +1304,25 @@ export default function NativeApp() {
     );
   }
 
-  if (screen === 'community') {
-    const communityMission = discoveries[0] ? getMissionById(discoveries[0].missionId) : null;
-    return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={{ padding: 24, gap: 16 }}><Pressable onPress={() => setScreen('complete')}><Text style={{ color: colors.blue, fontFamily: 'Inter_600SemiBold' }}>‹ Back</Text></Pressable><Text style={{ fontSize: 30, lineHeight: 36, color: colors.ink, fontFamily: 'Archivo_600SemiBold' }}>Other discoveries</Text>{communityMission ? <View style={{ gap: 6 }}><Text style={styles.eyebrow}>MISSION · {communityMission.title.toUpperCase()}</Text><Text style={styles.body}>{communityMission.prompt}</Text></View> : null}{discoveries[0] ? <View style={{ backgroundColor: colors.limeSubtle, borderRadius: 16, padding: 18, gap: 8 }}><Text style={styles.eyebrow}>YOUR DISCOVERY</Text><Text style={styles.h3}>{discoveries[0].missionTitle}</Text><Text style={styles.body}>{discoveries[0].observation}</Text>{discoveries[0].location ? <Text style={styles.smallMuted}>{discoveries[0].location}</Text> : null}</View> : null}<Text style={styles.eyebrow}>WHAT OTHERS FOUND</Text>{communityError ? <Text style={{ color: '#c43131' }}>{communityError}</Text> : null}{community.map(item => <View key={item.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 18, gap: 8 }}><Text style={styles.eyebrow}>{item.author_name}</Text><Text style={styles.h3}>{item.mission_title}</Text><Text style={styles.body}>{item.observation}</Text>{item.location ? <Text style={styles.smallMuted}>{item.location}</Text> : null}</View>)}</ScrollView></SafeAreaView>;
+  if (screen === 'community' && lastSubmittedDiscovery) {
+    const item = lastSubmittedDiscovery;
+    return <SafeAreaView style={styles.safe}><CommunityScreen
+      item={{ id: item.id, missionTitle: item.missionTitle, observation: item.observation, location: item.location }}
+      prompt={getMissionById(item.missionId)?.prompt ?? ''}
+      onBack={() => setScreen('complete')} onExplore={resetMission}
+    /></SafeAreaView>;
   }
 
   if (screen === 'complete') {
     return (
       <SafeAreaView style={styles.safe}>
         <ProductCompleteScreen
+          publicationStatus={lastSubmittedDiscovery ? <PublicationStatus key={lastSubmittedDiscovery.id} item={{
+            id: lastSubmittedDiscovery.id, missionTitle: lastSubmittedDiscovery.missionTitle,
+            observation: lastSubmittedDiscovery.observation, location: lastSubmittedDiscovery.location,
+          }} /> : undefined}
           onClose={() => setScreen('discover')}
-          onOtherDiscoveries={() => { setCommunityError(''); loadCommunityDiscoveries().then(setCommunity).catch(error => setCommunityError(error instanceof Error ? error.message : 'Community discoveries are unavailable.')).finally(() => setScreen('community')); }}
+          onOtherDiscoveries={() => setScreen('community')}
           onRemix={() => void startMissionRemix()}
           onExplore={resetMission}
           unlockedTrophy={

@@ -15,13 +15,13 @@ import {
   useFonts as useInterFonts,
 } from '@expo-google-fonts/inter';
 import NativeApp from './NativeApp';
-import { ProductOnboardingScreen } from './src/components/FigmaProductScreens';
+import { ProductHowItWorksScreen, ProductOnboardingScreen } from './src/components/FigmaProductScreens';
 import { BRAND_MARK_URI } from './src/brand';
 import { clearDraft, DraftSnapshot, loadDraft } from './src/draftStorage';
 import { colors, radius } from './src/theme';
 import { FEATURED_MISSION_ID, getMissionById } from './src/missions';
 
-type GateState = 'loading' | 'choice' | 'onboarding' | 'app';
+type GateState = 'loading' | 'choice' | 'onboarding' | 'how-it-works' | 'app';
 
 export default function NativeRoot() {
   const [archivoLoaded] = useArchivoFonts({ Archivo_600SemiBold, Archivo_700Bold });
@@ -65,7 +65,21 @@ export default function NativeRoot() {
         <SafeAreaView style={styles.productSafeArea}>
           <ProductOnboardingScreen
             onStart={() => setGateState('app')}
-            onHowItWorks={() => setGateState('app')}
+            onHowItWorks={() => setGateState('how-it-works')}
+          />
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  if (gateState === 'how-it-works') {
+    return (
+      <>
+        <StatusBar style="dark" />
+        <SafeAreaView style={styles.productSafeArea}>
+          <ProductHowItWorksScreen
+            onBack={() => setGateState('onboarding')}
+            onStart={() => setGateState('app')}
           />
         </SafeAreaView>
       </>

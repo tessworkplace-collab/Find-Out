@@ -730,10 +730,12 @@ function OtherDiscoveries({
   go,
   back,
   mission,
+  submitted,
 }: {
   go: (s: Screen) => void;
   back: () => void;
   mission: MissionDefinition;
+  submitted?: WebDiscovery;
 }) {
   const [community, setCommunity] = useState<CommunityDiscovery[]>([]);
   const [communityError, setCommunityError] = useState('');
@@ -751,8 +753,9 @@ function OtherDiscoveries({
 
         <View style={[styles.response, { backgroundColor: colors.limeSubtle }]}>
           <AppText style={styles.eyebrow}>YOUR DISCOVERY</AppText>
-          <AppText style={styles.h3}>{yourDiscovery.title}</AppText>
-          <AppText style={styles.smallMuted}>{yourDiscovery.note}</AppText>
+          <AppText style={styles.h3}>{submitted?.title ?? mission.title}</AppText>
+          <AppText style={styles.smallMuted}>{submitted?.note ?? 'Your submitted finding'}</AppText>
+          {submitted?.location ? <AppText style={styles.smallMuted}>{submitted.location}</AppText> : null}
         </View>
 
         <AppText style={styles.eyebrow}>WHAT OTHERS FOUND</AppText>
@@ -1232,7 +1235,7 @@ export default function App() {
           />
         );
       case 'other-discoveries':
-        return <OtherDiscoveries go={go} back={back} mission={flowMission} />;
+        return <OtherDiscoveries go={go} back={back} mission={flowMission} submitted={collectionEvidence.find((item) => item.id === selectedEvidenceId) ?? collectionEvidence[0]} />;
       case 'discovery-detail':
         return <DiscoveryDetail back={back} mission={flowMission} />;
       case 'my-discoveries':

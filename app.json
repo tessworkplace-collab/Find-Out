@@ -29,10 +29,6 @@
       ]
     ],
     "ios": {"supportsTablet": false},
-    "android": {"adaptiveIcon": {"backgroundColor": "#ffffff"}},
-    "web": {"bundler": "metro"},
-    "experiments": {
-      "baseUrl": "/Find-Out"
-    }
+    "android": {"adaptiveIcon": {"backgroundColor": "#ffffff"}}
   }
 }

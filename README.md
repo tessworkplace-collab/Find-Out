@@ -1,6 +1,6 @@
 # Find Out — Expo app
 
-Find Out is a question-led, real-world discovery app built with Expo and React Native. The app is developed for iOS and Android; the browser preview and GitHub Pages deployment have been removed.
+Find Out is a question-led, real-world discovery app built with Expo and React Native. The app is developed for iOS and Android.
 
 ## Run on an iPhone with Expo Go
 

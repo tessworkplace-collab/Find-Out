@@ -4,6 +4,13 @@ import { Publication, CommunityDiscovery, isPublished, publishDiscovery, loadCom
 import { colors, typography } from '../theme';
 import { FigmaActionButton, FigmaTopBar } from './FigmaProductScreens';
 
+function submissionDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
 export function PublicationStatus({ item }: { item: Publication }) {
   const [state, setState] = useState<'loading' | 'synced' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -68,7 +75,9 @@ export function CommunityScreen({ item, prompt, onBack, onExplore }: {
       {error ? <><Text accessibilityLiveRegion="polite">{error}</Text><FigmaActionButton label="Retry" outline onPress={() => setAttempt(n => n + 1)} /></> : null}
       {!loading && !error && !items.length ? <Text style={typography.body}>No other discoveries for this mission yet.</Text> : null}
       {items.map(row => <View key={row.id} style={{ padding: 18, gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 16 }}>
-        <Text style={typography.label}>{row.author_name}</Text>
+        <Text style={{ ...typography.small, color: colors.muted }}>
+          {[row.author_name?.trim() || 'Explorer', submissionDate(row.created_at)].filter(Boolean).join(' · ')}
+        </Text>
         <Text style={typography.body}>{row.observation}</Text>
         {row.location ? <Text style={typography.small}>{row.location}</Text> : null}
       </View>)}

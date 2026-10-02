@@ -7,7 +7,7 @@ export type UserPreferences = {
 };
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
-  displayName: 'Tess',
+  displayName: 'Explorer',
   missionReminders: true,
   locationAccess: false,
 };

@@ -6,7 +6,7 @@ const KEY = 'sb_publishable_DDp7EoxrwMKg1e_MawxWRA_7nNHcjSs';
 const headers = { apikey: KEY, 'Content-Type': 'application/json' };
 export type CommunityDiscovery = { id: string; mission_title: string; observation: string; location: string | null; author_name: string; created_at: string };
 export type Publication = { id: string; missionTitle: string; observation: string; location: string };
-type Receipt = { remoteId: string; synced: boolean };
+type Receipt = { remoteId: string; synced: boolean; authorName?: string };
 const RECEIPTS = 'findout:publication-receipts:v1';
 let queue: Promise<unknown> = Promise.resolve();
 const inFlight = new Map<string, Promise<void>>();
@@ -25,6 +25,10 @@ function updateReceipt(id: string, synced?: boolean): Promise<Receipt> {
   const task = queue.catch(() => undefined).then(async () => {
     const all = await receipts();
     const receipt = all[id] ?? { remoteId: uuid(), synced: false };
+    if (!receipt.authorName) {
+      const preferences = await loadUserPreferences();
+      receipt.authorName = preferences.displayName.trim().slice(0, 24) || 'Explorer';
+    }
     if (synced !== undefined) receipt.synced = synced;
     all[id] = receipt;
     // Persist identity BEFORE sending: retries after a timeout reuse the same primary key.
@@ -56,12 +60,11 @@ export function publishDiscovery(item: Publication): Promise<void> {
     }
     const receipt = await updateReceipt(item.id);
     if (receipt.synced) return;
-    const preferences = await loadUserPreferences();
     const response = await request('', {
       method: 'POST', headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({ id: receipt.remoteId, mission_title: item.missionTitle,
         observation: item.observation, location: item.location || null,
-        author_name: preferences.displayName || 'Explorer' }),
+        author_name: receipt.authorName }),
     });
     if (response.status === 409) {
       // A previous request may have committed even if its response was lost.

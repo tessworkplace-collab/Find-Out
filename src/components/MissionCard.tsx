@@ -83,16 +83,18 @@ export default function MissionCard({
           </View>
         )}
 
-        {icon ? (
-          <View style={styles.iconTile}>
-            <Ionicons name={icon} size={21} color={colors.blue} />
-            <View style={styles.iconAccent} />
-          </View>
-        ) : null}
       </View>
 
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.titleRow}>
+        {icon ? (
+          <View accessible={false} style={[styles.missionSymbol, isCompleted && styles.missionSymbolCompleted]}>
+            <Ionicons name={icon} size={28} color={colors.blue} />
+          </View>
+        ) : null}
+        <Text style={styles.title}>{title}</Text>
+      </View>
       <Text style={styles.description}>{description}</Text>
+      <View style={styles.cardFooter}>
       <Text
         style={[
           styles.progressLabel,
@@ -100,10 +102,12 @@ export default function MissionCard({
           isCompleted && styles.progressLabelCompleted,
         ]}
       >
-        {progressLabel}
+        {progressLabel.replace(/\s*→\s*$/, '')}
       </Text>
+      {onPress ? <Ionicons name="arrow-forward" size={18} color={isCompleted ? colors.ink : colors.blue} /> : null}
+      </View>
 
-      <View style={[styles.progressTrack, isCompleted && styles.progressTrackCompleted]}>
+      {state !== 'default' ? <View style={[styles.progressTrack, isCompleted && styles.progressTrackCompleted]}>
         <View
           style={[
             styles.progressFill,
@@ -111,7 +115,7 @@ export default function MissionCard({
             { width: progressWidth },
           ]}
         />
-      </View>
+      </View> : null}
     </Pressable>
   );
 }
@@ -124,9 +128,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.lg,
     backgroundColor: colors.white,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 14,
   },
   cardActive: {
     minHeight: 200,
@@ -187,32 +191,38 @@ const styles = StyleSheet.create({
   completedBadgeText: {
     color: colors.ink,
   },
-  iconTile: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  missionSymbol: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.blueSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    marginTop: -2,
+    flexShrink: 0,
   },
-  iconAccent: {
-    width: 7,
-    height: 7,
-    borderRadius: radius.full,
-    backgroundColor: colors.lime,
-    borderWidth: 1,
-    borderColor: colors.white,
-    position: 'absolute',
-    right: 5,
-    bottom: 5,
+  missionSymbolCompleted: {
+    backgroundColor: colors.white,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 12,
   },
   title: {
+    flex: 1,
     color: colors.ink,
     fontFamily: 'Archivo_600SemiBold',
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 20,
+    lineHeight: 26,
   },
   description: {
     color: colors.muted,
@@ -221,7 +231,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   progressLabel: {
-    color: colors.muted,
+    flexShrink: 1,
+    color: colors.blue,
     fontFamily: 'Inter_500Medium',
     fontSize: 10,
     lineHeight: 14,

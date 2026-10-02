@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   DimensionValue,
   Pressable,
@@ -7,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { colors, radius } from '../theme';
+import type { MissionIcon } from '../missions';
 
 export type MissionCardState = 'default' | 'active' | 'completed';
 
@@ -17,6 +19,7 @@ type MissionCardProps = {
   description: string;
   progressLabel: string;
   progress: number;
+  icon?: MissionIcon;
   onPress?: () => void;
   disabled?: boolean;
 };
@@ -28,6 +31,7 @@ export default function MissionCard({
   description,
   progressLabel,
   progress,
+  icon,
   onPress,
   disabled = false,
 }: MissionCardProps) {
@@ -56,27 +60,36 @@ export default function MissionCard({
         pressed && onPress && !disabled && styles.cardPressed,
       ]}
     >
-      {state === 'default' ? (
-        <View style={[styles.badge, styles.categoryBadge]}>
-          <Text style={[styles.badgeText, styles.categoryBadgeText]}>{category}</Text>
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.badge,
-            isCompleted ? styles.completedBadge : styles.activeBadge,
-          ]}
-        >
-          <Text
+      <View style={styles.cardHeader}>
+        {state === 'default' ? (
+          <View style={[styles.badge, styles.categoryBadge]}>
+            <Text style={[styles.badgeText, styles.categoryBadgeText]}>{category}</Text>
+          </View>
+        ) : (
+          <View
             style={[
-              styles.badgeText,
-              isCompleted ? styles.completedBadgeText : styles.activeBadgeText,
+              styles.badge,
+              isCompleted ? styles.completedBadge : styles.activeBadge,
             ]}
           >
-            {isCompleted ? 'COMPLETED' : 'IN PROGRESS'}
-          </Text>
-        </View>
-      )}
+            <Text
+              style={[
+                styles.badgeText,
+                isCompleted ? styles.completedBadgeText : styles.activeBadgeText,
+              ]}
+            >
+              {isCompleted ? 'COMPLETED' : 'IN PROGRESS'}
+            </Text>
+          </View>
+        )}
+
+        {icon ? (
+          <View style={styles.iconTile}>
+            <Ionicons name={icon} size={21} color={colors.blue} />
+            <View style={styles.iconAccent} />
+          </View>
+        ) : null}
+      </View>
 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
@@ -137,6 +150,12 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.82,
   },
+  cardHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
   badge: {
     alignSelf: 'flex-start',
     borderRadius: radius.full,
@@ -167,6 +186,27 @@ const styles = StyleSheet.create({
   },
   completedBadgeText: {
     color: colors.ink,
+  },
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.blueSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginTop: -2,
+  },
+  iconAccent: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.full,
+    backgroundColor: colors.lime,
+    borderWidth: 1,
+    borderColor: colors.white,
+    position: 'absolute',
+    right: 5,
+    bottom: 5,
   },
   title: {
     color: colors.ink,

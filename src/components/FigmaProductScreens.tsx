@@ -439,6 +439,7 @@ export function ProductDiscoverScreen({
         key={mission.id}
         state={state}
         category={`${mission.difficulty.toUpperCase()} · ${mission.pool.toUpperCase()}`}
+        icon={mission.icon}
         title={mission.title}
         description={mission.prompt}
         progressLabel={progressLabel}
@@ -455,6 +456,7 @@ export function ProductDiscoverScreen({
           key={card.mission.id}
           state="default"
           category={card.mission.difficulty.toUpperCase()}
+          icon={card.mission.icon}
           title={card.mission.title}
           description={card.mission.prompt}
           progressLabel="VIEW MISSION →"
@@ -469,6 +471,7 @@ export function ProductDiscoverScreen({
         key={card.mission.id}
         state="default"
         category="? · UNKNOWN"
+        icon="help-circle-outline"
         title="Unknown signal"
         description="Mission hidden until opened."
         progressLabel="REVEAL →"

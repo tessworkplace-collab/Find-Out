@@ -6,14 +6,14 @@ const ts = require('typescript');
 const source = ts.transpileModule(fs.readFileSync('src/communityDiscoveries.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-function setup(respond, storage = new Map()) {
+function setup(respond, storage = new Map(), displayName = 'Tess') {
   const calls = [];
   const exports = {};
   const context = { exports, URLSearchParams, AbortController, setTimeout, clearTimeout,
     fetch: async (url, init) => { calls.push({ url, init }); return respond(url, init, calls.length); },
     require: name => name.includes('async-storage') ? { default: {
       getItem: async key => storage.get(key) ?? null, setItem: async (key, value) => storage.set(key, value),
-    } } : { loadUserPreferences: async () => ({ displayName: 'Tess' }) },
+    } } : { loadUserPreferences: async () => ({ displayName }) },
   };
   vm.runInNewContext(source, context);
   return { api: exports, calls, storage };
@@ -35,9 +35,10 @@ test('failure survives reload and retry reuses remote identity', async () => {
   const first = setup(() => { throw new Error('Offline'); });
   await assert.rejects(first.api.publishDiscovery(item));
   const id = JSON.parse(first.calls[0].init.body).id;
-  const second = setup(() => response(201), first.storage);
+  const second = setup(() => response(201), first.storage, 'Another explorer');
   await second.api.publishDiscovery(item);
   assert.equal(JSON.parse(second.calls[0].init.body).id, id);
+  assert.equal(JSON.parse(second.calls[0].init.body).author_name, 'Tess');
 });
 test('lost success response is confirmed instead of duplicating', async () => {
   const { api, calls } = setup((url, init) => init.method === 'POST' ? response(409) :

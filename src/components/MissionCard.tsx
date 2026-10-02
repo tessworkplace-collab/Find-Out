@@ -87,7 +87,7 @@ export default function MissionCard({
 
       <View style={styles.titleRow}>
         {icon ? (
-          <View accessible={false} style={[styles.missionSymbol, isCompleted && styles.missionSymbolCompleted]}>
+          <View accessible={false} style={styles.missionSymbol}>
             <Ionicons name={icon} size={28} color={colors.blue} />
           </View>
         ) : null}
@@ -104,7 +104,7 @@ export default function MissionCard({
       >
         {progressLabel.replace(/\s*→\s*$/, '')}
       </Text>
-      {onPress ? <Ionicons name="arrow-forward" size={18} color={isCompleted ? colors.ink : colors.blue} /> : null}
+      {onPress ? <Ionicons name="arrow-forward" size={20} color={state === 'default' ? colors.lime : isCompleted ? colors.ink : colors.blue} /> : null}
       </View>
 
       {state !== 'default' ? <View style={[styles.progressTrack, isCompleted && styles.progressTrackCompleted]}>
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     paddingHorizontal: 20,
     paddingVertical: 20,
-    gap: 14,
+    gap: 12,
   },
   cardActive: {
     minHeight: 200,
@@ -197,25 +197,18 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   missionSymbol: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.blueSubtle,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-  },
-  missionSymbolCompleted: {
-    backgroundColor: colors.white,
   },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
+    paddingTop: 4,
   },
   title: {
     flex: 1,

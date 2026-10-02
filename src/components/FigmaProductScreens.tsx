@@ -14,7 +14,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { BRAND_MARK_URI } from '../brand';
 import { ONBOARDING_ILLUSTRATION_URI, ONBOARDING_LOGO_URI } from '../onboardingAssets';
-import { colors, radius } from '../theme';
+import { colors, radius, typography } from '../theme';
 import {
   MissionDefinition,
   MissionEvidenceMode,
@@ -1338,8 +1338,9 @@ export function ProductProfileScreen({
   }, []);
 
   const saveName = async () => {
+    if (savingName) return;
     const displayName = nameDraft.trim();
-    if (!displayName) { setProfileError('Enter a name.'); return; }
+    if (!displayName) { setProfileError('Enter a nickname.'); return; }
     setSavingName(true);
     setProfileError('');
     const next = { ...preferences, displayName };
@@ -1366,6 +1367,10 @@ export function ProductProfileScreen({
           {editingName ? (
             <TextInput
               autoFocus
+              accessibilityLabel="Nickname"
+              placeholder="Your nickname"
+              placeholderTextColor={colors.muted}
+              editable={!savingName}
               value={nameDraft}
               onChangeText={setNameDraft}
               onSubmitEditing={saveName}
@@ -1374,7 +1379,7 @@ export function ProductProfileScreen({
               returnKeyType="done"
             />
           ) : (
-            <Pressable disabled={!preferencesReady} onPress={() => { setNameDraft(preferences.displayName); setProfileError(''); setEditingName(true); }} style={styles.profileNameAction}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Edit nickname" disabled={!preferencesReady} onPress={() => { setNameDraft(preferences.displayName); setProfileError(''); setEditingName(true); }} style={styles.profileNameAction}>
               <Text style={styles.profileName}>{preferences.displayName}</Text>
               <Ionicons name="pencil-outline" size={15} color={colors.blue} />
             </Pressable>
@@ -1384,6 +1389,9 @@ export function ProductProfileScreen({
             <Pressable disabled={savingName} onPress={() => { setEditingName(false); setProfileError(''); }}><Text>Cancel</Text></Pressable>
           </View> : null}
           {profileError ? <Text accessibilityLiveRegion="polite" style={styles.formHelperError}>{profileError}</Text> : null}
+          <Text style={{ ...typography.small, color: colors.muted, textAlign: 'center' }}>
+            Your nickname appears with discoveries you share.
+          </Text>
           {equippedTitle ? <Text style={styles.profileTitle}>{equippedTitle}</Text> : null}
           <Text style={styles.profileStats}>{stats}</Text>
         </View>

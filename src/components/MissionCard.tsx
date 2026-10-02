@@ -83,16 +83,13 @@ export default function MissionCard({
           </View>
         )}
 
-      </View>
-
-      <View style={styles.titleRow}>
         {icon ? (
           <View accessible={false} style={styles.missionSymbol}>
-            <Ionicons name={icon} size={28} color={colors.blue} />
+            <Ionicons name={icon} size={22} color={colors.blue} />
           </View>
         ) : null}
-        <Text style={styles.title}>{title}</Text>
       </View>
+      <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
       <View style={styles.cardFooter}>
       <Text
@@ -157,11 +154,10 @@ const styles = StyleSheet.create({
   cardHeader: {
     width: '100%',
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   badge: {
-    alignSelf: 'flex-start',
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -191,14 +187,9 @@ const styles = StyleSheet.create({
   completedBadgeText: {
     color: colors.ink,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
   missionSymbol: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -211,7 +202,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   title: {
-    flex: 1,
     color: colors.ink,
     fontFamily: 'Archivo_600SemiBold',
     fontSize: 20,
